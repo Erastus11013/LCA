@@ -5,6 +5,11 @@ from datetime import datetime
 
 
 class RMQ:
+    """Range Minimum Query class
+    Has three methods to construct it
+    construct seg_tree is so far the fastest
+    @param: a: an array of integers, floats, or complex numbers"""
+    
     def __init__(self, a):
         self.array = a
         self.M = []
@@ -15,6 +20,7 @@ class RMQ:
         For every pair of indices (i, j) store the value of RMQ(i, j) in a table M[0, N-1][0, N-1].
         Using an easy dynamic programming approach we can reduce the complexity to <O(N^2), O(1)>
         Uses O(N^2) space"""
+        
         n = len(self.array)
         self.algo_used = 'n'
         self.M = np.full((n, n), inf, dtype='int32', order='F')
@@ -34,6 +40,7 @@ class RMQ:
         where M[i][j] is the index of the minimum value in the sub array starting at i having length 2^j.
         So, the overall complexity of the algorithm is <O(N logN), O(1)>
         Uses O(N logN) space"""
+        
         self.algo_used = 'st'
         n = len(self.array)
         m = int(log2(n))
@@ -142,9 +149,20 @@ class RMQ:
             return self._query_sparse_table(i, j)
         if self.algo_used == 't':
             return self._query_segment_tree(0, 0, len(self.array) - 1, i, j)
+    
+    def algorithm_used(self):
+        if self.algo_used == 't':
+            print('Segment tree')
+        elif self.algo_used == 'st':
+            print('Sparse table algorithm')
+        elif self.algo_used == 'n':
+            print("Naive dynamic programming algorithm")
 
     def __getitem__(self, item):
-        # item is a slice object
+        """Assumes item is a slice object
+        returns the argmin of the array in range[start: stop]
+        Note that stop is included in the interval
+        """
         n = len(self.array)
         stop = item.stop
         if stop is None or item.stop > n - 1:
@@ -160,28 +178,37 @@ class RMQ:
         return self.rmq(start, stop)
 
     def __repr__(self):
+        """Simple repr of the array in the RMQ class"""
         if len(self.array) > 10:
-            return 'RMQ [' + '  '.join(map(str, self.array[: 10])) + ' ... ' + str(self.array[-1]) + ']'
+            return 'RMQ [' + '  '.join(map(str, self.array[: 10])) + ' ... ' + str(self.array[-2]) + ']'
         else:
             return 'RMQ [' + '  '.join(map(str, self.array)) + ']'
 
 
 # tests
-def test_rmq(test, i, j):
+def test_naive_rmq_construct_method(test, i, j):
+    """test the naive method of constructing a range minimum query class
+        @param: test: the array to be used in the construction of the range minimum query
+        @param: i: the start of the interval
+        @param: j: the end of the interval
+           
+        @return: a tuple of (argmin, min)"""
     r = RMQ(test)
     r.construct_naive_rmq()
     x = r[i: j]
     return x, r.array[x]
 
 
-def test_rmq1(test, i, j):
+def test_sparse_table_algorithm_method(test, i, j):
+    """test the sparse table algorithm for constructing a range minimum query class"""
     r = RMQ(test)
     r.construct_sparse_table()
     x = r[i: j]
     return x, r.array[x]
 
 
-def test_rmq2(test, i, j):
+def test_segment_tree_construction_method(test, i, j):
+    """test the segment tree construction of a range minimum query"""
     r = RMQ(test)
     r.construct_rmq_segment_tree()
     x = r[i: j]
@@ -189,6 +216,11 @@ def test_rmq2(test, i, j):
 
 
 def tests(size, fl, cap, n):
+    """Testing
+        @param: size: size of the random array to be constructed
+        @param: fl: the minimum value of randint
+        @param cap: the maximum value of randint
+        @param: n: the number of times to run the tests"""
     for i in range(n):
         i = randint(0, size - 1)
         j = randint(i, size - 1)
@@ -196,15 +228,15 @@ def tests(size, fl, cap, n):
         test = [randint(fl, cap) for _ in range(size)]
 
         t1 = datetime.now()
-        arg_min, minimum1 = test_rmq(test, i, j)
+        arg_min, minimum1 = test_naive_rmq_construct_method(test, i, j)
         print("min using naive rmq: ", minimum1, "ran in time", (datetime.now() - t1).total_seconds(), "seconds...")
 
         t2 = datetime.now()
-        arg_min, minimum2 = test_rmq1(test, i, j)
+        arg_min, minimum2 = test_sparse_table_algorithm_method(test, i, j)
         print("min using sparse rmq: ", minimum2, "ran in time", (datetime.now() - t2).total_seconds(), "seconds...")
         t3 = datetime.now()
 
-        arg_min, minimum3 = test_rmq2(test, i, j)
+        arg_min, minimum3 = test_segment_tree_construction_method(test, i, j)
         print("min using seg tree: ", minimum3, "ran in time", (datetime.now() - t3).total_seconds(), "seconds...")
         mininum4 = min(test[i:j + 1])
         assert minimum1 == mininum4 == minimum2 == minimum3
