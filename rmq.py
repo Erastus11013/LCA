@@ -47,6 +47,9 @@ class RMQ:
                         self.M[i][j] = self.M[i][j - 1]
                     else:
                         self.M[i][j] = self.M[i + (1 << (j - 1))][j - 1]
+    def construct_rmq_segment_tree(self):
+        n = len(self.array)
+        self._initialize(1, 0, n)
 
     def construct_rmq_sqrt(self):
         """An interesting idea is to split the vector in sqrt(N) pieces.
@@ -61,11 +64,53 @@ class RMQ:
         else:
             return self.M[high - (1 << k) + 1][k]
 
+    def _initialize(self, current, low, high):
+        if low == high:
+            self.M[current] = low
+        else:
+            mid = low + high // 2
+            left = Node(current.key * 2)
+            right = Node(current.key * 2 + 1)
+            self._initialize(left, low, mid)
+            self._initialize(right, mid + 1, high)
+
+            if self.array[self.M[2 * current.key]] <= self.array[self.M[2 * current.key + 1]]:
+                self.M[current.key] = self.M[current.key * 2]
+            else:
+                self.M[current.key] = self.M[2 * current.key + 1]
+
+    def _query_segment_tree(self, node, low, high, i, j):
+
+        # if the current interval doesn’t intersect  the query interval
+        if i > high or j < low:
+            return False
+
+        # if the current interval is included in the query interval return M[node]
+        if low >= i and high <= j:
+            return self.M[node]
+
+        #  compute argmin in the left and right interval
+        p1 = self._query_segment_tree(2 * node, low, (low + high) / 2, i, j)
+        p2 = self._query_segment_tree(2 * node + 1, (low + high) / 2 + 1, high, i, j)
+
+        # find and return argmin(self.A[i: j])// return the
+        if not p1:
+            return p2
+        elif not p2:
+            return p1
+        if self.array[p1] <= self.array[p2]:
+            return p1
+        else:
+            return p2
+
+
     def rmq(self, i, j):
         if self.algo_used == 'a':
             return self.M[i][j]
         elif self.algo_used == 'st':  # sparse table algorithm
             return self._query_sparse_table(i, j)
+        if self.algo == 't':
+            return self._query_segment_tree(1, 0, len(self.array)- 1, i, j)
 
     def __getitem__(self, item):
         # item is a slice object
@@ -83,7 +128,7 @@ class RMQ:
 
 def test_rmq(test, i, j):
     r = RMQ(test)
-    r.construct_sparse_table()
+    r.construct_rmq_segment_tree()
     x = r[i: j]
     return x, r.array[x]
 
