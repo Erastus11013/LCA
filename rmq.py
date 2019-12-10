@@ -1,21 +1,23 @@
 import numpy as np
 from random import randint
-from math import inf
-from math import log2
+from math import inf, log2
+from datetime import datetime
 
 
 class RMQ:
     def __init__(self, a):
         self.array = a
         self.M = []
-        self.algo_used = 'st'
+        self.algo_used = 't'
 
     def construct_naive_rmq(self):
         """Trivial algorithm for RMQ
         For every pair of indices (i, j) store the value of RMQ(i, j) in a table M[0, N-1][0, N-1].
-        Using an easy dynamic programming approach we can reduce the complexity to <O(N2), O(1)> """
+        Using an easy dynamic programming approach we can reduce the complexity to <O(N^2), O(1)>
+        Uses O(N^2) space"""
         n = len(self.array)
-        self.M = np.full((n, n), inf, dtype='int32')
+        self.algo_used = 'n'
+        self.M = np.full((n, n), inf, dtype='int32', order='F')
         for i in range(n):   # O(n)
             self.M[i][i] = i
 
@@ -30,10 +32,12 @@ class RMQ:
         """preprocess RMQ for sub arrays of length 2k using dynamic programming.
         We will keep an array M[0, N-1][0, logN]
         where M[i][j] is the index of the minimum value in the sub array starting at i having length 2^j.
-        So, the overall complexity of the algorithm is <O(N logN), O(1)>"""
+        So, the overall complexity of the algorithm is <O(N logN), O(1)>
+        Uses O(N logN) space"""
+        self.algo_used = 'st'
         n = len(self.array)
         m = int(log2(n))
-        self.M = np.full((n, m + 1), inf, dtype='int32')
+        self.M = np.full((n, m + 1), inf, dtype='int32', order='F')
         for i in range(n):  # intervals of length 1
             self.M[i][0] = i
         for j in range(1, m + 1):  # log(n)
@@ -47,16 +51,37 @@ class RMQ:
                         self.M[i][j] = self.M[i][j - 1]
                     else:
                         self.M[i][j] = self.M[i + (1 << (j - 1))][j - 1]
+
     def construct_rmq_segment_tree(self):
+        """A segment tree or segtree is a basically a binary tree used for storing the intervals or segments.
+        Each node in the segment tree represents an interval.
+        Consider an array A of size N and a corresponding segtree T:
+        The root of T will represent the whole array A[0:N-1].
+        Each leaf in the segtree T will represent a single element A[i] such that 0 <= i < N.
+        The internal nodes in the segtree tree T represent union of elementary intervals A[i:j] where 0 <= i < j < N.
+        The root of the segtree will represent the whole array A[0:N-1].
+        Then we will break the interval or segment into half and the two children of the root will represent the
+        A[0:(N-1) / 2] and A[(N-1) / 2 + 1:(N-1)].
+        So in each step we will divide the interval into half and the two children will represent the two halves.
+        So the height of the segment tree will be log2N.
+        There are N leaves representing the N elements of the array.
+        The number of internal nodes is N-1. So total number of nodes are
+        O(N) space: Array of size 2N."""
+
+        self.algo_used = 't'
         n = len(self.array)
-        self._initialize(1, 0, n)
+        max_size = n << 1 + 1
+        self.M = np.array([0] * max_size)
+        self._initialize(0, 0, n-1)
 
     def construct_rmq_sqrt(self):
         """An interesting idea is to split the vector in sqrt(N) pieces.
         We will keep in a vector M[0, sqrt(N)-1] the position for the minimum value for each section.
-        M can be easily preprocessed in O(N):"""
+        M can be easily preprocessed in O(N)"""
 
     def _query_sparse_table(self, low, high):
+        """In this operation we can query on an interval or segment and
+         return the answer to the problem on that particular interval."""
         length = (high - low) + 1
         k = int(log2(length))
         if self.array[self.M[low][k]] <= self.array[self.M[low + length - (1 << k)][k]]:
@@ -65,58 +90,73 @@ class RMQ:
             return self.M[high - (1 << k) + 1][k]
 
     def _initialize(self, current, low, high):
-        if low == high:
+        """Helper method to construct the segment tree"""
+        if low == high:  # we are at a leaf
             self.M[current] = low
         else:
-            mid = low + high // 2
-            left = Node(current.key * 2)
-            right = Node(current.key * 2 + 1)
+            mid = (low + high) >> 1
+
+            left = current * 2 + 1
+            right = current * 2 + 2
             self._initialize(left, low, mid)
             self._initialize(right, mid + 1, high)
-
-            if self.array[self.M[2 * current.key]] <= self.array[self.M[2 * current.key + 1]]:
-                self.M[current.key] = self.M[current.key * 2]
+            if self.array[self.M[left]] <= self.array[self.M[right]]:
+                self.M[current] = self.M[left]
             else:
-                self.M[current.key] = self.M[2 * current.key + 1]
+                self.M[current] = self.M[right]
 
-    def _query_segment_tree(self, node, low, high, i, j):
+    def _query_segment_tree(self, curr, low, high, i, j):
+        """To query on a given range, we need to check 3 conditions:
+            range represented by a node is completely inside the given range
+            range represented by a node is completely outside the given range
+            range represented by a node is partially inside and partially outside the given range"""
 
-        # if the current interval doesn’t intersect  the query interval
+        # range represented by a node is completely outside the given range
         if i > high or j < low:
-            return False
+            return -1
 
-        # if the current interval is included in the query interval return M[node]
-        if low >= i and high <= j:
-            return self.M[node]
+        # if the current interval is included in the query interval return M[curr]
+        if i <= low and high <= j:
+            return self.M[curr]
 
-        #  compute argmin in the left and right interval
-        p1 = self._query_segment_tree(2 * node, low, (low + high) / 2, i, j)
-        p2 = self._query_segment_tree(2 * node + 1, (low + high) / 2 + 1, high, i, j)
+        #  compute arg_min in the left and right interval
+        mid = (low + high) >> 1
+        p1 = self._query_segment_tree(2 * curr + 1, low, mid, i, j)
+        p2 = self._query_segment_tree(2 * curr + 2, mid + 1, high, i, j)
 
-        # find and return argmin(self.A[i: j])// return the
-        if not p1:
-            return p2
-        elif not p2:
+        # find and return arg_min(self.A[i: j])// return the
+        if p2 == -1:
             return p1
+        if p1 == -1:
+            return p2
         if self.array[p1] <= self.array[p2]:
             return p1
         else:
             return p2
 
-
     def rmq(self, i, j):
-        if self.algo_used == 'a':
+        """Return the argmin in the range [i:j] of the array"""
+        if self.algo_used == 'n':
             return self.M[i][j]
         elif self.algo_used == 'st':  # sparse table algorithm
             return self._query_sparse_table(i, j)
-        if self.algo == 't':
-            return self._query_segment_tree(1, 0, len(self.array)- 1, i, j)
+        if self.algo_used == 't':
+            return self._query_segment_tree(0, 0, len(self.array) - 1, i, j)
 
     def __getitem__(self, item):
         # item is a slice object
+        n = len(self.array)
+        stop = item.stop
+        if stop is None or item.stop > n - 1:
+            stop = n - 1
+        else:
+            if stop < 0:
+                stop += n
         assert isinstance(item, slice), print(item)
         start = 0 if item.start is None else item.start
-        stop = len(self.array) - 1 if item.stop is None else item.stop
+
+        if start > stop:
+            raise IndexError("make sure start <= stop")
         return self.rmq(start, stop)
 
     def __repr__(self):
@@ -126,7 +166,22 @@ class RMQ:
             return 'RMQ [' + '  '.join(map(str, self.array)) + ']'
 
 
+# tests
 def test_rmq(test, i, j):
+    r = RMQ(test)
+    r.construct_naive_rmq()
+    x = r[i: j]
+    return x, r.array[x]
+
+
+def test_rmq1(test, i, j):
+    r = RMQ(test)
+    r.construct_sparse_table()
+    x = r[i: j]
+    return x, r.array[x]
+
+
+def test_rmq2(test, i, j):
     r = RMQ(test)
     r.construct_rmq_segment_tree()
     x = r[i: j]
@@ -134,14 +189,26 @@ def test_rmq(test, i, j):
 
 
 def tests(size, fl, cap, n):
-    # test = [7, 5, 0, 30, 25, 7, 9, 18, 13, 3, 20, 2, 12, 4, 13, 13]
     for i in range(n):
         i = randint(0, size - 1)
         j = randint(i, size - 1)
+
         test = [randint(fl, cap) for _ in range(size)]
-        arg_min, minimum = test_rmq(test, i, j)
-        assert minimum == min(test[i:j + 1])
+
+        t1 = datetime.now()
+        arg_min, minimum1 = test_rmq(test, i, j)
+        print("min using naive rmq: ", minimum1, "ran in time", (datetime.now() - t1).total_seconds(), "seconds...")
+
+        t2 = datetime.now()
+        arg_min, minimum2 = test_rmq1(test, i, j)
+        print("min using sparse rmq: ", minimum2, "ran in time", (datetime.now() - t2).total_seconds(), "seconds...")
+        t3 = datetime.now()
+
+        arg_min, minimum3 = test_rmq2(test, i, j)
+        print("min using seg tree: ", minimum3, "ran in time", (datetime.now() - t3).total_seconds(), "seconds...")
+        mininum4 = min(test[i:j + 1])
+        assert minimum1 == mininum4 == minimum2 == minimum3
 
 
 if __name__ == '__main__':
-    tests(90, 0, 30, 100)
+    tests(20000, -200, 200, 3)
