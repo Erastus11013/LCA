@@ -9,7 +9,7 @@ class RMQ:
     Has three methods to construct it
     construct seg_tree is so far the fastest
     @param: a: an array of integers, floats, or complex numbers"""
-    
+
     def __init__(self, a):
         self.array = a
         self.M = []
@@ -20,7 +20,7 @@ class RMQ:
         For every pair of indices (i, j) store the value of RMQ(i, j) in a table M[0, N-1][0, N-1].
         Using an easy dynamic programming approach we can reduce the complexity to <O(N^2), O(1)>
         Uses O(N^2) space"""
-        
+
         n = len(self.array)
         self.algo_used = 'n'
         self.M = np.full((n, n), inf, dtype='int32', order='F')
@@ -40,7 +40,7 @@ class RMQ:
         where M[i][j] is the index of the minimum value in the sub array starting at i having length 2^j.
         So, the overall complexity of the algorithm is <O(N logN), O(1)>
         Uses O(N logN) space"""
-        
+
         self.algo_used = 'st'
         n = len(self.array)
         m = int(log2(n))
@@ -149,14 +149,15 @@ class RMQ:
             return self._query_sparse_table(i, j)
         if self.algo_used == 't':
             return self._query_segment_tree(0, 0, len(self.array) - 1, i, j)
-    
+
+    @property
     def algorithm_used(self):
         if self.algo_used == 't':
-            print('Segment tree')
+            return 'Segment tree'
         elif self.algo_used == 'st':
-            print('Sparse table algorithm')
+            return 'Sparse table algorithm'
         elif self.algo_used == 'n':
-            print("Naive dynamic programming algorithm")
+            return 'Naive dynamic programming algorithm'
 
     def __getitem__(self, item):
         """Assumes item is a slice object
@@ -191,7 +192,7 @@ def test_naive_rmq_construct_method(test, i, j):
         @param: test: the array to be used in the construction of the range minimum query
         @param: i: the start of the interval
         @param: j: the end of the interval
-           
+
         @return: a tuple of (argmin, min)"""
     r = RMQ(test)
     r.construct_naive_rmq()
@@ -211,6 +212,7 @@ def test_segment_tree_construction_method(test, i, j):
     """test the segment tree construction of a range minimum query"""
     r = RMQ(test)
     r.construct_rmq_segment_tree()
+    print(r.algorithm_used)
     x = r[i: j]
     return x, r.array[x]
 
@@ -243,4 +245,4 @@ def tests(size, fl, cap, n):
 
 
 if __name__ == '__main__':
-    tests(20000, -200, 200, 3)
+    tests(1000, 13, 200, 3)
