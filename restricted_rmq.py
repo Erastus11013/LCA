@@ -3,6 +3,7 @@ from treap import CartesianTreeRMQ
 import numpy as np
 from math import log2, ceil, inf
 from copy import deepcopy
+import bitty
 
 
 class RestrictedRMQ(RMQ):
@@ -37,11 +38,12 @@ class RestrictedRMQ(RMQ):
         b_size = ceil(log2(n)) // 2
         b_count = ceil(n / b_size)
         b_comb = int((b_size * (b_size + 1)) / 2)  # summation formula
+        block_types = range(2**b_size)  # e.g for block size of 2, possible blocks [0, 1, 2, 3]
 
         self.M = np.zeros(int(b_count * b_comb), dtype='int32')
         for i in range(b_count):
             start = i * b_comb
-            r_ind = 0
+            row = 0
 
             # computing the minimum in each block.
             # we
@@ -50,20 +52,21 @@ class RestrictedRMQ(RMQ):
                 for k in range(j, b_size):  # k the row number
                     if self.depths[(i * b_size) + k - 1] == minimum:
                         if minimum == 1:
-                            self.M[start + r_ind] = j
-                            r_ind += 1
+                            self.M[start + row] = j
+                            row += 1
                         else:
-                            self.M[start + r_ind] = k
-                            r_ind += 1
+                            self.M[start + row] = k
+                            row += 1
                     elif self.depths[(i * b_size) + k - 1] < minimum:
-                        self.M[start + r_ind] = k
-                        r_ind += 1
+                        self.M[start + row] = k
+                        row += 1
                     else:
-                        self.M[start + r_ind] = j
-                        r_ind += 1
+                        self.M[start + row] = j
+                        row += 1
         self.block_count = b_count
         self.block_size = b_size
         self.block_comb = b_comb
+        print("size of self.M", len(self.M))
 
     def _compute_min_out_of_block(self, b_count, b_size, b_comb):
         """assumes that lookup_tables have already been created"""
@@ -154,7 +157,7 @@ class RestrictedRMQ(RMQ):
 
 
 if __name__ == '__main__':
-    test = [9, 1400, 7, 100, 8, 12, 10, 20, 15, 18, 5, 12, 14, 98, 75, 19]
+    test = [9, 1, 7, 5, 8, 12, 10, 20, 15, 18, 5, 12, 14, 98, 75, 19]
     rq = RestrictedRMQ(test)
     rq.build_restricted_rmq()
     print(rq.rmq(0, 14))
