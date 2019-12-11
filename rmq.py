@@ -34,7 +34,7 @@ class RMQ:
                 else:
                     self.M[i][j] = j
 
-    def construct_sparse_table(self):
+    def construct_sparse_table(self, array=None, sparse=None):
         """preprocess RMQ for sub arrays of length 2k using dynamic programming.
         We will keep an array M[0, N-1][0, logN]
         where M[i][j] is the index of the minimum value in the sub array starting at i having length 2^j.
@@ -44,9 +44,14 @@ class RMQ:
         self.algo_used = 'st'
         n = len(self.array)
         m = int(log2(n))
-        self.M = np.full((n, m + 1), inf, dtype='int32', order='F')
+        if sparse is None:
+            sparse = np.full((n, m + 1), inf, dtype='int32', order='F')
+            self.M = sparse
+        if array is None:
+            array = self.array
+
         for i in range(n):  # intervals of length 1
-            self.M[i][0] = i
+            sparse[i][0] = i
         for j in range(1, m + 1):  # log(n)
             if (1 << j) > n:  # 1 << j == 2^j
                 break
@@ -54,10 +59,10 @@ class RMQ:
                 if (i + (1 << j) - 1) >= n:
                     break  # i + 2^j - 1
                 else:
-                    if self.array[self.M[i][j - 1]] < self.array[self.M[i + (1 << (j - 1))][j - 1]]:
-                        self.M[i][j] = self.M[i][j - 1]
+                    if array[sparse[i][j - 1]] < array[sparse[i + (1 << (j - 1))][j - 1]]:
+                        sparse[i][j] = sparse[i][j - 1]
                     else:
-                        self.M[i][j] = self.M[i + (1 << (j - 1))][j - 1]
+                        sparse[i][j] = sparse[i + (1 << (j - 1))][j - 1]
 
     def construct_rmq_segment_tree(self):
         """A segment tree or segtree is a basically a binary tree used for storing the intervals or segments.
@@ -86,15 +91,21 @@ class RMQ:
         We will keep in a vector M[0, sqrt(N)-1] the position for the minimum value for each section.
         M can be easily preprocessed in O(N)"""
 
-    def _query_sparse_table(self, low, high):
+    def _query_sparse_table(self, low, high, array=None, sparse=None):
         """In this operation we can query on an interval or segment and
          return the answer to the problem on that particular interval."""
+
+        if array is None:
+            array = self.array
+        if sparse is None:
+            sparse = self.M
+
         length = (high - low) + 1
         k = int(log2(length))
-        if self.array[self.M[low][k]] <= self.array[self.M[low + length - (1 << k)][k]]:
-            return self.M[low][k]
+        if array[sparse[low][k]] <= array[sparse[low + length - (1 << k)][k]]:
+            return sparse[low][k]
         else:
-            return self.M[high - (1 << k) + 1][k]
+            return sparse[high - (1 << k) + 1][k]
 
     def _initialize(self, current, low, high):
         """Helper method to construct the segment tree"""
@@ -192,7 +203,6 @@ def test_naive_rmq_construct_method(test, i, j):
         @param: test: the array to be used in the construction of the range minimum query
         @param: i: the start of the interval
         @param: j: the end of the interval
-
         @return: a tuple of (argmin, min)"""
     r = RMQ(test)
     r.construct_naive_rmq()
@@ -212,7 +222,6 @@ def test_segment_tree_construction_method(test, i, j):
     """test the segment tree construction of a range minimum query"""
     r = RMQ(test)
     r.construct_rmq_segment_tree()
-    print(r.algorithm_used)
     x = r[i: j]
     return x, r.array[x]
 
