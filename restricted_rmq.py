@@ -5,15 +5,17 @@ from math import log2, ceil, inf
 from sys import maxsize
 from copy import deepcopy
 
+# author: Erastus Murungi
+# email: erastusmurungi@gmail.com
 
 class RestrictedRMQ(RMQ):
     """
     Subclasses RMQ
 
     The Range-Minimum-Query-Problem is to preprocess an array such that the position of the minimum element
-     between two specified indices can be obtained efficiently.
-     It consumes 9n + O(√n log^2 n) space
-     It has O(n) pre processing time and O(1) time queries
+    between two specified indices can be obtained efficiently.
+    It consumes 9n + O(√n log^2 n) space
+    It has O(n) pre processing time and O(1) time queries
 
 
     Attributes:
@@ -28,6 +30,10 @@ class RestrictedRMQ(RMQ):
             The size of one block is usually 1/2 lg n
         block_count: the number of blocks the depths array can be divided into.
             This number is equal to 2n/block_size
+
+
+    A better RMQ structure can be build using the Fischer-Heun algorithm. The link for the paper is here:
+        https://link.springer.com/content/pdf/10.1007%2F11780441_5.pdf
 
     """
     INFINITY = maxsize
@@ -49,6 +55,8 @@ class RestrictedRMQ(RMQ):
         self._build_cartesian_tree()      # 3n ... but is deleted
 
     def _build_cartesian_tree(self):
+        """builds a cartesian tree of the input array
+        performs an Euler Tour and stores the arrays A, depths and R in self"""
         c = CartesianTreeRMQ(self.array)
         c.build_cartesian_tree()  # step 1
         self.E, self.depths, self.R = c.euler_tour()  # step 2
@@ -76,9 +84,10 @@ class RestrictedRMQ(RMQ):
         Args:
             block: an array of numbers, as long as they differ evenly by +- c
             blocksize: the size of a an array
+
         Returns:
             an integer w
-            """
+        """
         w = 0
         k = blocksize - 2
         for i in range(1, blocksize):
@@ -100,7 +109,7 @@ class RestrictedRMQ(RMQ):
 
         Returns:
             L: a normalized array based on the input 'array'
-            """
+        """
         if array is None:
             array = self.depths
         L = list(deepcopy(array))
@@ -112,7 +121,26 @@ class RestrictedRMQ(RMQ):
         return L
 
     def rmq_compressed_lookup(self, blocksize, lookup_interval, shift=None, arr=None, lookup=None):
-        """ fills the lookup table starting from position shift"""
+        """ fills the lookup table starting from position shift
+        Uses an array of size √n * 2^b_size
+
+        Args:
+            blocksize: size of a block
+            lookup_interval: size of a lookup section for one block
+            shift: the starting position of block i's lookup table:
+                It can be calculated as shift = b_type * lookup_interval.
+                Every b_type, i.e [00, 01, 10, 11] occupies a specific index in the lookup_table
+            arr: the array whose rmq structure is being built
+            lookup: the array containing the lookup sections of each block
+
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+
         if lookup is None:
             lookup = np.zeros(lookup_interval, dtype='int32')
         if shift is None:
@@ -153,8 +181,6 @@ class RestrictedRMQ(RMQ):
 
         Raises:
                None
-
-
          """
 
         m = int(log2(b_count))
@@ -185,6 +211,7 @@ class RestrictedRMQ(RMQ):
 
     def build_restricted_rmq(self, save=True):
         """Main method: TODO: Documentation"""
+
         self.algo_used = 'r+'
         n = len(self.depths)
 
@@ -231,14 +258,10 @@ class RestrictedRMQ(RMQ):
 
     def _query_restricted_rmq(self, a, b, lca=True):
         """ The overall strategy here is straight from the paper.  We look up
-            the blocks that contain u and v (taking care to consider v being
+            the blocks that contain i and j (taking care to consider j being
             the inclusive endpoint even though the API understands it to be
-            exclusive), then use a sparse_rmq search over the super array among
-            blocks strictly between u's and v's blocks, and do naive_rmq
-            searches in the representative structures for the blocks with u's
-            and v's blocks' shapes.
-            Most of what's below is offset math, and
-            isn't all that interesting."""
+            exclusive),
+            Most of what's below is offset math, and isn't all that interesting."""
 
         i, j = self.R[a], self.R[b]
 
@@ -279,12 +302,13 @@ class RestrictedRMQ(RMQ):
                 return opos
 
     def rmq(self, a, b):
+        """Return the minimum value"""
         return self._query_restricted_rmq(a, b)
 
 
 if __name__ == '__main__':
-    test = [8, 7, 2, 8, 6, 9, 4, 5]
+    test = [8, 7, 5, 8, 6, 9, 4, 5]
     rq = RestrictedRMQ(test)
     rq.build_restricted_rmq()
-    x = rq.rmq(1, 5)
+    x = rq.rmq(0, 5)
     print(x)
