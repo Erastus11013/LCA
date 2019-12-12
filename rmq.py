@@ -15,24 +15,27 @@ class RMQ:
         self.M = []
         self.algo_used = 't'
 
-    def construct_naive_rmq(self):
+    def construct_naive_rmq(self, array=None, lookup=None):
         """Trivial algorithm for RMQ
         For every pair of indices (i, j) store the value of RMQ(i, j) in a table M[0, N-1][0, N-1].
         Using an easy dynamic programming approach we can reduce the complexity to <O(N^2), O(1)>
         Uses O(N^2) space"""
-
         n = len(self.array)
+        if array is None:
+            array = self.array
+        if lookup is None:
+            lookup = self.M = np.full((n, n), inf, dtype='int32')
+
         self.algo_used = 'n'
-        self.M = np.full((n, n), inf, dtype='int32', order='F')
         for i in range(n):   # O(n)
             self.M[i][i] = i
 
         for i in range(n):
             for j in range(i + 1, n):
-                if self.array[self.M[i][j - 1]] < self.array[j]:
-                    self.M[i][j] = self.M[i][j-1]
+                if array[self.M[i][j - 1]] < array[j]:
+                    lookup[i][j] = self.M[i][j-1]
                 else:
-                    self.M[i][j] = j
+                    lookup[i][j] = j
 
     def construct_sparse_table(self, array=None, sparse=None):
         """preprocess RMQ for sub arrays of length 2k using dynamic programming.
@@ -45,7 +48,7 @@ class RMQ:
         n = len(self.array)
         m = int(log2(n))
         if sparse is None:
-            sparse = np.full((n, m + 1), inf, dtype='int32', order='F')
+            sparse = np.full((n, m + 1), inf, dtype='int32')
             self.M = sparse
         if array is None:
             array = self.array
@@ -158,8 +161,10 @@ class RMQ:
             return self.M[i][j]
         elif self.algo_used == 'st':  # sparse table algorithm
             return self._query_sparse_table(i, j)
-        if self.algo_used == 't':
+        elif self.algo_used == 't':
             return self._query_segment_tree(0, 0, len(self.array) - 1, i, j)
+
+
 
     @property
     def algorithm_used(self):
@@ -233,25 +238,31 @@ def tests(size, fl, cap, n):
         @param cap: the maximum value of randint
         @param: n: the number of times to run the tests"""
     for i in range(n):
-        i = randint(0, size - 1)
-        j = randint(i, size - 1)
-
-        test = [randint(fl, cap) for _ in range(size)]
+        # i = randint(0, size - 1)
+        # j = randint(i, size - 1)
+        #
+        # test = [randint(fl, cap) for _ in range(size)]]
+        i = 0
+        j = 15
+        # test = [0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0]
+        test = [20, 19, 18, 17, 18]
 
         t1 = datetime.now()
-        arg_min, minimum1 = test_naive_rmq_construct_method(test, i, j)
+        arg_min1, minimum1 = test_naive_rmq_construct_method(test, i, j)
         print("min using naive rmq: ", minimum1, "ran in time", (datetime.now() - t1).total_seconds(), "seconds...")
 
         t2 = datetime.now()
-        arg_min, minimum2 = test_sparse_table_algorithm_method(test, i, j)
+        arg_min2, minimum2 = test_sparse_table_algorithm_method(test, i, j)
         print("min using sparse rmq: ", minimum2, "ran in time", (datetime.now() - t2).total_seconds(), "seconds...")
         t3 = datetime.now()
 
-        arg_min, minimum3 = test_segment_tree_construction_method(test, i, j)
+        arg_min3, minimum3 = test_segment_tree_construction_method(test, i, j)
         print("min using seg tree: ", minimum3, "ran in time", (datetime.now() - t3).total_seconds(), "seconds...")
         mininum4 = min(test[i:j + 1])
         assert minimum1 == mininum4 == minimum2 == minimum3
 
+        print(arg_min1, arg_min2, arg_min3)
+
 
 if __name__ == '__main__':
-    tests(1000, 13, 200, 3)
+    tests(1000, 13, 200, 1)
