@@ -11,13 +11,10 @@ from copy import deepcopy
 class RestrictedRMQ(RMQ):
     """
     Subclasses RMQ
-
     The Range-Minimum-Query-Problem is to preprocess an array such that the position of the minimum element
     between two specified indices can be obtained efficiently.
     It consumes 9n + O(√n log^2 n) space
     It has O(n) pre processing time and O(1) time queries
-
-
     Attributes:
         E: stores elements of array after an euler tour of the Cartesian Tree of array
         depths: an array of the depths of nodes in the cartesian tree of array
@@ -30,11 +27,8 @@ class RestrictedRMQ(RMQ):
             The size of one block is usually 1/2 lg n
         block_count: the number of blocks the depths array can be divided into.
             This number is equal to 2n/block_size
-
-
     A better RMQ structure can be build using the Fischer-Heun algorithm. The link for the paper is here:
         https://link.springer.com/content/pdf/10.1007%2F11780441_5.pdf
-
     """
     INFINITY = maxsize
 
@@ -78,13 +72,10 @@ class RestrictedRMQ(RMQ):
     @staticmethod
     def get_first_block_type(block, blocksize) -> int:
         """Calculates the type of normalized block an array would have
-
         uses the bitvector w to encode a pattern to save space
-
         Args:
             block: an array of numbers, as long as they differ evenly by +- c
             blocksize: the size of a an array
-
         Returns:
             an integer w
         """
@@ -98,15 +89,21 @@ class RestrictedRMQ(RMQ):
 
     @staticmethod
     def get_pos(i, j, blocksize):
-        return sum(range(blocksize - i - 1), blocksize) + j - (blocksize - i)
+        """ returns the position i, j in the compressed lookup array
+        the col = # arithmetic summation from [blocksize .. blocksize - i + 1]
+        the row = j - 1"""
+        if i == 0:
+            return j
+
+        # col = int(((blocksize << 1) - i + 1) * i) >> 1  # arithmetic summation from [blocksize .. blocksize - i + 1]
+        # row = j - i
+        return (int(((blocksize << 1) - i + 1) * i) >> 1) + (j - 1)
 
     def _normalize_blocks(self, array=None):
         """Creates a normalized array look like so we don't calculate them explicitly
         main for debug purposes. The function does not modify the original array
-
         Args:
             array: the array to be normalized. If it is none, the default is self.depths
-
         Returns:
             L: a normalized array based on the input 'array'
         """
@@ -123,7 +120,6 @@ class RestrictedRMQ(RMQ):
     def rmq_compressed_lookup(self, blocksize, lookup_interval, shift=None, arr=None, lookup=None):
         """ fills the lookup table starting from position shift
         Uses an array of size √n * 2^b_size
-
         Args:
             blocksize: size of a block
             lookup_interval: size of a lookup section for one block
@@ -132,11 +128,8 @@ class RestrictedRMQ(RMQ):
                 Every b_type, i.e [00, 01, 10, 11] occupies a specific index in the lookup_table
             arr: the array whose rmq structure is being built
             lookup: the array containing the lookup sections of each block
-
-
         Returns:
             None
-
         Raises:
             None
         """
@@ -163,10 +156,8 @@ class RestrictedRMQ(RMQ):
     def populate_sparse_table(self, b_count, b_size, lookup, T, save=True):
         """
         Populates a sparse table, with information from the lookup table table
-
         The for loop finds the minimum value of each block and saves the value in an array A
         Inside the for loop, the array B is also populated. B[i] stores the index of A[i] in self.E
-
         Args:
             b_size:     The size of block of the underlying array. It is equal to 1/2 lg n
             b_count:    The number of blocks the underlying has been divided into:
@@ -175,10 +166,8 @@ class RestrictedRMQ(RMQ):
                         block i's mini-lookup table in the main lookup table
             lookup:     An array of Integers holding answers to queries of the form argmin[i, j] in a certain block
             save:       If True, the functions add the attributes A, B, sparse to the self
-
         Returns:
                None
-
         Raises:
                None
          """
