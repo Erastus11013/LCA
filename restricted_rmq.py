@@ -60,18 +60,10 @@ class RestrictedRMQ(RMQ):
         """To determine the type of block which x has, then you need to consider elements
         in the range[0 ... n] if using 1-based indexing. For example if the blocksize is 4, then block must include the
         last element of the previous block, for the first block, send in an array
-        """
-        bit = 0
-        k = blocksize - 1
-        for i in range(1, blocksize + 1):
-            if block[i] > block[i - 1]:
-                bit = bit | (1 << k)  # set bit at position k to 1
-            k -= 1
-        return bit
 
-    @staticmethod
-    def get_first_block_type(block, blocksize) -> int:
-        """Calculates the type of normalized block an array would have
+        If blocksize is too small, i.e 1: there is no need for saving blocks in a lookup table
+
+        Calculates the type of normalized block an array would have
         uses the bitvector w to encode a pattern to save space
         Args:
             block: an array of numbers, as long as they differ evenly by +- c
@@ -79,11 +71,19 @@ class RestrictedRMQ(RMQ):
         Returns:
             an integer w
         """
+
+        # assumes that blocksize is at least 2
         w = 0
-        k = blocksize - 2
-        for i in range(1, blocksize):
+        k = blocksize - 1
+        if block[0] > block[1]:
+            w = w | (1 << k)
+        else:
+            w = w | (1 << (k - 1))
+
+        k -= 2  # skip two positions
+        for i in range(2, blocksize):
             if block[i] > block[i - 1]:
-                w = w | (1 << k)
+                w = w | (1 << k)  # set bit at position k to 1
             k -= 1
         return w
 
@@ -215,20 +215,15 @@ class RestrictedRMQ(RMQ):
 
         T = np.zeros(b_count, dtype='int32')
 
-        # initialization
-        b_type = self.get_first_block_type(self.depths[: b_size], b_size)  # get b_type first element
-        self.rmq_compressed_lookup(b_size, lookup_interval, 0, self.depths, lookup)
-        T[0] = b_type * lookup_interval
-
-        for i in range(1, b_count):
+        for i in range(0, b_count):
             b_start = i * b_size
             b_end = min(b_start + b_size - 1, n - 1)
             if b_end - b_start < b_size - 1:  # last block is shorter
-                new_block = np.append(self.depths[b_start - 1: b_end + 1],
+                new_block = np.append(self.depths[b_start: b_end + 1],
                                       [self.INFINITY] * (b_end - b_start + 1))
                 b_type = self.get_block_type(new_block, b_size)
             else:
-                b_type = self.get_block_type(self.depths[b_start - 1: b_end + 1], b_size)
+                b_type = self.get_block_type(self.depths[b_start: b_end + 1], b_size)
 
             pos = b_type * lookup_interval  # position of b_type in the lookup array
             if lookup[pos] == -1:
@@ -253,6 +248,8 @@ class RestrictedRMQ(RMQ):
             Most of what's below is offset math, and isn't all that interesting."""
 
         i, j = self.R[a], self.R[b]
+        if i > j:
+            i, j = j, i
 
         x = i // self.block_size  # block containing i
         y = j // self.block_size   # block containing y
@@ -278,11 +275,11 @@ class RestrictedRMQ(RMQ):
             lpos = self.T[y] + self.get_pos(0, v, self.block_size)
             lmin = y * self.block_size + self.lookup[lpos]
 
-            bmin = fmin if self.E[fmin] < self.E[lmin] else lmin
+            bmin = fmin if self.depths[fmin] < self.depths[lmin] else lmin
             # super array minimum
             if y - x > 1:  # if there are blocks between x, y
                 superpos = self.B[self._query_sparse_table(x + 1, y - 1, self.A, self.sparse)]
-                opos = bmin if self.E[bmin] < self.E[superpos] else superpos
+                opos = bmin if self.depths[bmin] < self.depths[superpos] else superpos
             else:
                 opos = bmin
             if lca:
@@ -299,5 +296,5 @@ if __name__ == '__main__':
     test = [8, 7, 5, 8, 6, 9, 4, 5]
     rq = RestrictedRMQ(test)
     rq.build_restricted_rmq()
-    x = rq.rmq(0, 5)
+    x = rq.rmq(3, 6)
     print(x)
