@@ -5,8 +5,10 @@ from math import log2, ceil, inf
 from sys import maxsize
 from copy import deepcopy
 
+
 # author: Erastus Murungi
 # email: erastusmurungi@gmail.com
+
 
 class RestrictedRMQ(RMQ):
     """
@@ -15,6 +17,7 @@ class RestrictedRMQ(RMQ):
     between two specified indices can be obtained efficiently.
     It consumes 9n + O(√n log^2 n) space
     It has O(n) pre processing time and O(1) time queries
+
     Attributes:
         E: stores elements of array after an euler tour of the Cartesian Tree of array
         depths: an array of the depths of nodes in the cartesian tree of array
@@ -27,26 +30,27 @@ class RestrictedRMQ(RMQ):
             The size of one block is usually 1/2 lg n
         block_count: the number of blocks the depths array can be divided into.
             This number is equal to 2n/block_size
+
     A better RMQ structure can be build using the Fischer-Heun algorithm. The link for the paper is here:
         https://link.springer.com/content/pdf/10.1007%2F11780441_5.pdf
     """
     INFINITY = maxsize
 
     def __init__(self, a):
-        super().__init__(a)               # ------------- #
-        self.E = None                     # 2n - 1
-        self.depths = None                # 2n - 1
-        self.R = None                     # n
-        self.A = None                     # n
-        self.B = None                     # n
-        self.T = None                     # n
-        self.lookup = None                # sqrt(n) * 2n/lg n  #  o(n)
-        self.block_size = 0               # 1
-        self.block_count = 0              # 1
-        self.lookup_interval = 0               # 1
-        self.lca = True                   # 1
-        self.sparse = None                # 2n/ lg n * log ( 2n/ lg n )
-        self._build_cartesian_tree()      # 3n ... but is deleted
+        super().__init__(a)  # ------------- #
+        self.E = None  # 2n - 1
+        self.depths = None  # 2n - 1
+        self.R = None  # n
+        self.A = None  # n
+        self.B = None  # n
+        self.T = None  # n
+        self.lookup = None  # sqrt(n) * 2n/lg n  #  o(n)
+        self.block_size = 0  # 1
+        self.block_count = 0  # 1
+        self.lookup_interval = 0  # 1
+        self.lca = True  # 1
+        self.sparse = None  # 2n/ lg n * log ( 2n/ lg n )
+        self._build_cartesian_tree()  # 3n ... but is deleted
 
     def _build_cartesian_tree(self):
         """builds a cartesian tree of the input array
@@ -91,13 +95,16 @@ class RestrictedRMQ(RMQ):
     def get_pos(i, j, blocksize):
         """ returns the position i, j in the compressed lookup array
         the col = # arithmetic summation from [blocksize .. blocksize - i + 1]
-        the row = j - 1"""
-        if i == 0:
-            return j
+        the row = j - 1
 
         # col = int(((blocksize << 1) - i + 1) * i) >> 1  # arithmetic summation from [blocksize .. blocksize - i + 1]
-        # row = j - i
-        return (int(((blocksize << 1) - i + 1) * i) >> 1) + (j - 1)
+        # row = j - i"""
+
+        if i == 0:
+            return j
+        col = int(((blocksize << 1) - i + 1) * i) >> 1
+        row = j - i
+        return (int(((blocksize << 1) - i + 1) * i) >> 1) + (j - i)
 
     def _normalize_blocks(self, array=None):
         """Creates a normalized array look like so we don't calculate them explicitly
@@ -142,6 +149,7 @@ class RestrictedRMQ(RMQ):
             arr = self.array
 
         for i in range(blocksize):  # O(n)
+            pos = self.get_pos(i, i, blocksize)
             k = shift + self.get_pos(i, i, blocksize)
             lookup[k] = i
 
@@ -198,21 +206,18 @@ class RestrictedRMQ(RMQ):
             self.A = A
             self.B = B
 
-    def build_restricted_rmq(self, save=True):
+    def construct_restricted_rmq(self, save=True):
         """Main method: TODO: Documentation"""
 
-        self.algo_used = 'r+'
         n = len(self.depths)
-
         b_size = ceil(log2(n)) // 2
         b_count = ceil(n / b_size)
+
         # summation formula for block size of 2, possible blocks [0, 1, 2, 3]
         lookup_interval = (b_size * (b_size + 1)) >> 1
-
         size_lt = lookup_interval * (1 << b_size)  # size of lookup table
 
         lookup = np.full(size_lt, -1, dtype='int32')  # the lookup table [0, 1, 2, 3 ... b_count]
-
         T = np.zeros(b_count, dtype='int32')
 
         for i in range(0, b_count):
@@ -224,7 +229,8 @@ class RestrictedRMQ(RMQ):
                 b_type = self.get_block_type(new_block, b_size)
             else:
                 b_type = self.get_block_type(self.depths[b_start: b_end + 1], b_size)
-
+            if b_type == 0:
+                print(b_type)
             pos = b_type * lookup_interval  # position of b_type in the lookup array
             if lookup[pos] == -1:
                 self.rmq_compressed_lookup(b_size, lookup_interval, pos, self.depths[b_start: b_end + 1], lookup)
@@ -252,20 +258,19 @@ class RestrictedRMQ(RMQ):
             i, j = j, i
 
         x = i // self.block_size  # block containing i
-        y = j // self.block_size   # block containing y
+        y = j // self.block_size  # block containing y
         u = i % self.block_size  # starting position of i in block x
         v = (j % self.block_size)  # end position of j in block y
 
-        if x == y:   # if they are in the same block.. use lookup
+        if x == y:  # if they are in the same block.. use lookup
 
             ipos = self.T[x] + self.get_pos(u, v, self.block_size)
             in_block_min = x * self.block_size + self.lookup[ipos]
-            shift = self.block_size * x
-            actual_pos = shift + in_block_min
+
             if lca:
-                return self.E[actual_pos]
+                return self.E[in_block_min]
             else:
-                return actual_pos
+                return in_block_min
         else:
             # first block min calculation
             fpos = self.T[x] + self.get_pos(u, self.block_size - 1, self.block_size)
@@ -287,14 +292,20 @@ class RestrictedRMQ(RMQ):
             else:
                 return opos
 
+    def __repr__(self):
+        return self.__class__.__qualname__ + '\n(array: ' + str(self.array) + '\n' \
+               + 'D:' + str(self.depths) + ')'
+
     def rmq(self, a, b):
         """Return the minimum value"""
         return self._query_restricted_rmq(a, b)
 
 
 if __name__ == '__main__':
-    test = [8, 7, 5, 8, 6, 9, 4, 5]
-    rq = RestrictedRMQ(test)
-    rq.build_restricted_rmq()
-    x = rq.rmq(3, 6)
+    test = [7, 33, 0, 35, 0, 16, 30, 22, 13, 0]  # causes a bug
+    print(min(test[1: 6]))
+    r = RestrictedRMQ(test)
+    r.construct_restricted_rmq()
+    x = r.rmq(1, 6)
     print(x)
+
