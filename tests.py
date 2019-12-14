@@ -6,11 +6,7 @@ from datetime import datetime
 
 # tests
 def test_naive_rmq_construct_method(test, i, j):
-    """test the naive method of constructing a range minimum query class
-        @param: test: the array to be used in the construction of the range minimum query
-        @param: i: the start of the interval
-        @param: j: the end of the interval
-        @return: a tuple of (argmin, min)"""
+    """test the naive method of constructing a range minimum query class"""
     r = RMQ(test)
     r.construct_naive_rmq()
     x = r[i: j]
@@ -34,19 +30,29 @@ def test_segment_tree_construction_method(test, i, j):
 
 
 def test_restricted_rmq_construction_method(test, i, j):
+    """test the restricted range minimum query class"""
     r = RestrictedRMQ(test)
     r.construct_restricted_rmq()
-    r.norm = r._normalize_blocks()
     x = r.rmq(i, j)
     return x
 
 
 def tests(size, fl, cap, n):
-    """Testing
-        @param: size: size of the random array to be constructed
-        @param: fl: the minimum value of randint
-        @param cap: the maximum value of randint
-        @param: n: the number of times to run the tests"""
+    """Main testing function
+    Uses random intervals and a random array for testing
+    Args:
+        size: size of the random array to be constructed
+        fl: the minimum value of randint
+        cap: the maximum value of randint
+        n: the number of times to run the tests
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: if the minimum values returned by the five methods, (including inbuilt min) are not equal
+    """
+
     for i in range(n):
         i = randint(0, size - 1)
         j = randint(i, size - 1)
@@ -74,4 +80,4 @@ def tests(size, fl, cap, n):
 
 
 if __name__ == '__main__':
-    tests(9, -67890, 300000, 50)
+    tests(1000, -67890, 300000, 1)
