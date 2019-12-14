@@ -3,7 +3,6 @@ from treap import CartesianTreeRMQ
 import numpy as np
 from math import log2, ceil, inf
 from sys import maxsize
-from copy import deepcopy
 
 
 # author: Erastus Murungi
@@ -17,37 +16,37 @@ class RestrictedRMQ(RMQ):
     between two specified indices can be obtained efficiently.
     It consumes 9n + O(√n log^2 n) space
     It has O(n) pre processing time and O(1) time queries
-
     Attributes:
         E: stores elements of array after an euler tour of the Cartesian Tree of array
-        depths: an array of the depths of nodes in the cartesian tree of array
+        D: an array of the depths of nodes in the cartesian tree of array
         R: the representative array: R[i] stores the position of the first occurrence of array[i] in the euler tour
             of the cartesian tree of array
         A: A[i] stores the minimum element in the ith block of the depths array
         B: B[i] stores the position of A[i] in the E and depths arrays
         lookup: a lookup table for each of the normalized blocks of depth array
-        block_size: the size of a block of the the depths array.
+        blocksize: the size of a block of the the depths array.
             The size of one block is usually 1/2 lg n
-        block_count: the number of blocks the depths array can be divided into.
+        blockcount: the number of blocks the depths array can be divided into.
             This number is equal to 2n/block_size
-
     A better RMQ structure can be build using the Fischer-Heun algorithm. The link for the paper is here:
         https://link.springer.com/content/pdf/10.1007%2F11780441_5.pdf
+
     """
     INFINITY = maxsize
 
     def __init__(self, a):
-        super().__init__(a)  # ------------- #
+        """Initializes the class using an array"""
+        super().__init__(a)
         self.E = None  # 2n - 1
-        self.depths = None  # 2n - 1
+        self.D = None  # 2n - 1
         self.R = None  # n
         self.A = None  # n
         self.B = None  # n
         self.T = None  # n
         self.lookup = None  # sqrt(n) * 2n/lg n  #  o(n)
-        self.block_size = 0  # 1
-        self.block_count = 0  # 1
-        self.lookup_interval = 0  # 1
+        self.blocksize = 0  # 1
+        self.blockcount = 0  # 1
+        self.ltinterval = 0  # 1
         self.lca = True  # 1
         self.sparse = None  # 2n/ lg n * log ( 2n/ lg n )
         self._build_cartesian_tree()  # 3n ... but is deleted
@@ -55,18 +54,15 @@ class RestrictedRMQ(RMQ):
     def _build_cartesian_tree(self):
         """builds a cartesian tree of the input array
         performs an Euler Tour and stores the arrays A, depths and R in self"""
+
         c = CartesianTreeRMQ(self.array)
         c.build_cartesian_tree()  # step 1
-        self.E, self.depths, self.R = c.euler_tour()  # step 2
+        self.E, self.D, self.R = c.euler_tour()  # step 2
 
     @staticmethod
     def get_block_type(block, blocksize) -> int:
-        """To determine the type of block which x has, then you need to consider elements
-        in the range[0 ... n] if using 1-based indexing. For example if the blocksize is 4, then block must include the
-        last element of the previous block, for the first block, send in an array
-
+        """ Determines the block type of a block
         If blocksize is too small, i.e 1: there is no need for saving blocks in a lookup table
-
         Calculates the type of normalized block an array would have
         uses the bitvector w to encode a pattern to save space
         Args:
@@ -75,6 +71,9 @@ class RestrictedRMQ(RMQ):
         Returns:
             an integer w
         """
+
+        if blocksize == 1:
+            return 0
 
         # assumes that blocksize is at least 2
         w = 0
@@ -95,41 +94,20 @@ class RestrictedRMQ(RMQ):
     def get_pos(i, j, blocksize):
         """ returns the position i, j in the compressed lookup array
         the col = # arithmetic summation from [blocksize .. blocksize - i + 1]
-        the row = j - 1
-
-        # col = int(((blocksize << 1) - i + 1) * i) >> 1  # arithmetic summation from [blocksize .. blocksize - i + 1]
-        # row = j - i"""
+        # col = int(((blocksize << 1) - i + 1) * i) >> 1
+        # row = j - i
+        """
 
         if i == 0:
             return j
-        col = int(((blocksize << 1) - i + 1) * i) >> 1
-        row = j - i
         return (int(((blocksize << 1) - i + 1) * i) >> 1) + (j - i)
 
-    def _normalize_blocks(self, array=None):
-        """Creates a normalized array look like so we don't calculate them explicitly
-        main for debug purposes. The function does not modify the original array
-        Args:
-            array: the array to be normalized. If it is none, the default is self.depths
-        Returns:
-            L: a normalized array based on the input 'array'
-        """
-        if array is None:
-            array = self.depths
-        L = list(deepcopy(array))
-        n = len(array)
-        for i in range(2, n):
-            L[i] = array[i] - array[i - 1]
-            if L[i] < 0:
-                L[i] = 0
-        return L
-
-    def rmq_compressed_lookup(self, blocksize, lookup_interval, shift=None, arr=None, lookup=None):
+    def rmq_compressed_lookup(self, blocksize, ltinterval, shift=None, arr=None, lookup=None):
         """ fills the lookup table starting from position shift
         Uses an array of size √n * 2^b_size
         Args:
             blocksize: size of a block
-            lookup_interval: size of a lookup section for one block
+            ltinterval: size of a lookup section for one block
             shift: the starting position of block i's lookup table:
                 It can be calculated as shift = b_type * lookup_interval.
                 Every b_type, i.e [00, 01, 10, 11] occupies a specific index in the lookup_table
@@ -142,14 +120,13 @@ class RestrictedRMQ(RMQ):
         """
 
         if lookup is None:
-            lookup = np.zeros(lookup_interval, dtype='int32')
+            lookup = np.zeros(ltinterval, dtype='int32')
         if shift is None:
             shift = 0
         if arr is None:
             arr = self.array
 
         for i in range(blocksize):  # O(n)
-            pos = self.get_pos(i, i, blocksize)
             k = shift + self.get_pos(i, i, blocksize)
             lookup[k] = i
 
@@ -161,14 +138,14 @@ class RestrictedRMQ(RMQ):
                 else:
                     lookup[k] = j
 
-    def populate_sparse_table(self, b_count, b_size, lookup, T, save=True):
+    def populate_sparse_table(self, blockcount, blocksize, lookup, T, save=True):
         """
         Populates a sparse table, with information from the lookup table table
         The for loop finds the minimum value of each block and saves the value in an array A
         Inside the for loop, the array B is also populated. B[i] stores the index of A[i] in self.E
         Args:
-            b_size:     The size of block of the underlying array. It is equal to 1/2 lg n
-            b_count:    The number of blocks the underlying has been divided into:
+            blocksize:     The size of block of the underlying array. It is equal to 1/2 lg n
+            blockcount:    The number of blocks the underlying has been divided into:
                         It is usually equal to n / b_size
             T:          An array of integers where T[i] to the points the start index of
                         block i's mini-lookup table in the main lookup table
@@ -178,25 +155,24 @@ class RestrictedRMQ(RMQ):
                None
         Raises:
                None
-         """
+        """
 
-        m = int(log2(b_count))
+        m = int(log2(blockcount))
 
-        A = np.zeros(b_count, dtype='int32')
-        B = np.zeros(b_count, dtype='int32')
+        A = np.zeros(blockcount, dtype='int32')
+        B = np.zeros(blockcount, dtype='int32')
 
-        sparse = np.full((b_count, m + 1), inf, dtype='int32')
+        sparse = np.full((blockcount, m + 1), inf, dtype='int32')
 
-        for i in range(0, b_count):
+        for i in range(0, blockcount):
             # computing the min in each block
-            pos = T[i]  # the lookup table for i starts at pos
-            min_ind = pos + self.get_pos(0, b_size - 1, b_size)
+            minpos = T[i] + self.get_pos(0, blocksize - 1, blocksize)
 
-            index = lookup[min_ind]  # when i = 0, j = b_size - 1; [0][b_size - 1] =
+            index = lookup[minpos]  # when i = 0, j = b_size - 1; [0][b_size - 1] =
             # 0 * b_comb + b_size - 1
-            index = i * b_size + index  # absolute index in the depths array = i * b_size + index
+            index = i * blocksize + index  # absolute index in the depths array = i * b_size + index
 
-            A[i] = self.E[index]
+            A[i] = self.D[index]  # changed from E to depths
             B[i] = index
 
             # in the end, construct the sparse table
@@ -207,86 +183,117 @@ class RestrictedRMQ(RMQ):
             self.B = B
 
     def construct_restricted_rmq(self, save=True):
-        """Main method: TODO: Documentation"""
+        """Constructs the range minimum query for an array with the +- 1 property
 
-        n = len(self.depths)
-        b_size = ceil(log2(n)) // 2
-        b_count = ceil(n / b_size)
+        Variables:
+            n: the length of the array D, i.e the array storing the depth of nodes
+            blocksize: the size of a block, i.e 1/2 lg n
+            blockcount: the number of blocks of size blocksize. i.e 2n/ lg n
+            ltinterval: the size of a lookup section for one block in the lookup array
+            sizelt: the size of the whole lookup array
+            lookup: the lookup table, usually denoted as P in papers
+            T: an array denoting the starting position of block i's lookup section
+            bstart: starting index of block i in self.D
+            bend: end position of block i in self.D
 
-        # summation formula for block size of 2, possible blocks [0, 1, 2, 3]
-        lookup_interval = (b_size * (b_size + 1)) >> 1
-        size_lt = lookup_interval * (1 << b_size)  # size of lookup table
+         Args:
+            save: if true, save (blocksize, blockcount, lookup, T) in self
+            else return the tuple
 
-        lookup = np.full(size_lt, -1, dtype='int32')  # the lookup table [0, 1, 2, 3 ... b_count]
-        T = np.zeros(b_count, dtype='int32')
+        Returns:
+            None or a tuple of (blocksize, blockcount, lookup, T)
+        """
 
-        for i in range(0, b_count):
-            b_start = i * b_size
-            b_end = min(b_start + b_size - 1, n - 1)
-            if b_end - b_start < b_size - 1:  # last block is shorter
-                new_block = np.append(self.depths[b_start: b_end + 1],
-                                      [self.INFINITY] * (b_end - b_start + 1))
-                b_type = self.get_block_type(new_block, b_size)
+        n = len(self.D)
+        blocksize = ceil(log2(n)) // 2
+        blockcount = ceil(n / blocksize)
+
+        # arithmetic summation for block size of 2, possible blocks [0, 1, 2, 3]
+        ltinterval = (blocksize * (blocksize + 1)) >> 1
+        size_lt = ltinterval * (1 << blocksize)  # size of lookup table
+
+        lookup = np.full(size_lt, -1, dtype='int32')  # the lookup table [0, 1, 2, 3 ... blockcount]
+        T = np.zeros(blockcount, dtype='int32')
+
+        for i in range(0, blockcount):
+            bstart = i * blocksize
+            bend = min(bstart + blocksize - 1, n - 1)
+            if bend - bstart < blocksize - 1:  # last block is shorter
+                block = np.append(self.D[bstart: bend + 1],
+                                  [self.INFINITY] * (bend - bstart + 1))
+                btype = self.get_block_type(block, blocksize)
             else:
-                b_type = self.get_block_type(self.depths[b_start: b_end + 1], b_size)
-            if b_type == 0:
-                print(b_type)
-            pos = b_type * lookup_interval  # position of b_type in the lookup array
-            if lookup[pos] == -1:
-                self.rmq_compressed_lookup(b_size, lookup_interval, pos, self.depths[b_start: b_end + 1], lookup)
-                T[i] = pos
+                btype = self.get_block_type(self.D[bstart: bend + 1], blocksize)
+            tpos = btype * ltinterval  # position of btype in the lookup array
+            if lookup[tpos] == -1:
+                self.rmq_compressed_lookup(blocksize, ltinterval, tpos, self.D[bstart: bend + 1], lookup)
+                T[i] = tpos
             else:
-                T[i] = pos
+                T[i] = tpos
 
-        self.populate_sparse_table(b_count, b_size, lookup, T, save)
+        self.populate_sparse_table(blockcount, blocksize, lookup, T, save)
         if save:
-            self.block_size = b_size
-            self.block_count = b_count
-            self.lookup_interval = lookup_interval
+            self.blocksize = blocksize
+            self.blockcount = blockcount
+            self.ltinterval = ltinterval
             self.T = T
             self.lookup = lookup
+        else:
+            return blocksize, blocksize, lookup, T
 
     def _query_restricted_rmq(self, a, b, lca=True):
         """ The overall strategy here is straight from the paper.  We look up
-            the blocks that contain i and j (taking care to consider j being
-            the inclusive endpoint even though the API understands it to be
-            exclusive),
-            Most of what's below is offset math, and isn't all that interesting."""
+            the blocks that contain i and j, find their mins, and compare that min with
+            of [block i .. block j] using the sparse table
+
+            Most of what's below is offset math, and isn't all that interesting.
+
+        Args:
+            a: the start position in the original array
+            b: the end position in the original array
+            lca: tells whether to return argmin or min in the array E
+
+        Returns:
+            if lca == True return min in the array E, which is equal to the min in the original array
+                    otherwise, return argmin in the array E, not argmin in the original array
+        """
 
         i, j = self.R[a], self.R[b]
         if i > j:
             i, j = j, i
 
-        x = i // self.block_size  # block containing i
-        y = j // self.block_size  # block containing y
-        u = i % self.block_size  # starting position of i in block x
-        v = (j % self.block_size)  # end position of j in block y
+        x = i // self.blocksize  # block containing i
+        y = j // self.blocksize  # block containing y
+        u = i % self.blocksize  # starting position of i in block x
+        v = j % self.blocksize  # end position of j in block y
 
-        if x == y:  # if they are in the same block.. use lookup
+        if x == y:  # if i, j are in the same block only use lookup
 
-            ipos = self.T[x] + self.get_pos(u, v, self.block_size)
-            in_block_min = x * self.block_size + self.lookup[ipos]
+            ipos = self.T[x] + self.get_pos(u, v, self.blocksize)
+            imin = x * self.blocksize + self.lookup[ipos]
 
             if lca:
-                return self.E[in_block_min]
+                return self.E[imin]
             else:
-                return in_block_min
+                return imin
         else:
             # first block min calculation
-            fpos = self.T[x] + self.get_pos(u, self.block_size - 1, self.block_size)
-            fmin = x * self.block_size + self.lookup[fpos]
+            fpos = self.T[x] + self.get_pos(u, self.blocksize - 1, self.blocksize)
+            fmin = x * self.blocksize + self.lookup[fpos]  # argmin in first block
 
             # last block min calculation
-            lpos = self.T[y] + self.get_pos(0, v, self.block_size)
-            lmin = y * self.block_size + self.lookup[lpos]
+            lpos = self.T[y] + self.get_pos(0, v, self.blocksize)
+            lmin = y * self.blocksize + self.lookup[lpos]   # argmin in last block
 
-            bmin = fmin if self.depths[fmin] < self.depths[lmin] else lmin
+            bmin = fmin if self.D[fmin] < self.D[lmin] else lmin
+
             # super array minimum
             if y - x > 1:  # if there are blocks between x, y
                 superpos = self.B[self._query_sparse_table(x + 1, y - 1, self.A, self.sparse)]
-                opos = bmin if self.depths[bmin] < self.depths[superpos] else superpos
+                opos = bmin if self.D[bmin] < self.D[superpos] else superpos  # overall argmin
             else:
                 opos = bmin
+
             if lca:
                 return self.E[opos]
             else:
@@ -294,18 +301,17 @@ class RestrictedRMQ(RMQ):
 
     def __repr__(self):
         return self.__class__.__qualname__ + '\n(array: ' + str(self.array) + '\n' \
-               + 'D:' + str(self.depths) + ')'
+               + 'D:' + str(self.D) + ')'
 
     def rmq(self, a, b):
-        """Return the minimum value"""
+        """Return the minimum value or argmin"""
         return self._query_restricted_rmq(a, b)
 
 
 if __name__ == '__main__':
-    test = [7, 33, 0, 35, 0, 16, 30, 22, 13, 0]  # causes a bug
-    print(min(test[1: 6]))
+    test = [17, 33, 1, 35, 78, 6, 30, 22, 13, 0]
+    x = min(test[1:7])
     r = RestrictedRMQ(test)
     r.construct_restricted_rmq()
-    x = r.rmq(1, 6)
-    print(x)
-
+    y = r.rmq(1, 6)
+    print(x == y, (x, y))
