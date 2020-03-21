@@ -10,14 +10,14 @@ class RMQCatalan(RMQ):
     @staticmethod
     def compute_ballot_numbers(n):
     """computing ballot numbers"""
-    C = np.zeros((n + 1, n + 1), dtype='uint64')
-    for i in range(n + 1):
-        C[i][0] = 1
-    for i in range(1, n + 1):
-        for j in range(1, n + 1):
-            if i >= j:
-                C[i][j] = C[i][j - 1] + C[i - 1][j]
-    return C
+        C = np.zeros((n + 1, n + 1), dtype='uint64')
+        for i in range(n + 1):
+            C[i][0] = 1
+        for i in range(1, n + 1):
+            for j in range(1, n + 1):
+                if i >= j:
+                    C[i][j] = C[i][j - 1] + C[i - 1][j]
+        return C
     
     @staticmethod
     def get_block_type(block, s):
