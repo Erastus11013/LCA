@@ -6,6 +6,7 @@ from typing import Generic, Iterable, Optional
 import numpy as np
 
 from common import T
+from treap import build_cartesian_tree, get_lca
 
 
 class RMQ(Generic[T], ABC):
@@ -13,7 +14,7 @@ class RMQ(Generic[T], ABC):
         self.array = np.array(a)
 
     @abstractmethod
-    def query(self, start: int, stop: int) -> int:
+    def _query(self, start: int, stop: int) -> int:
         pass
 
     def __getitem__(self, item: slice | tuple) -> T:
@@ -31,7 +32,7 @@ class RMQ(Generic[T], ABC):
             stop = n - 1
         elif stop < 0:
             stop += n
-        return self.query(start, stop)
+        return self._query(start, stop)
 
     def __repr__(self):
         return f"RMQ{repr(self.array)}"
@@ -40,53 +41,57 @@ class RMQ(Generic[T], ABC):
 class RMQSparseTable(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
-        self.lookup_table = self.__construct_rmq_sparse_table()
+        self.lookup_table = self._construct()
 
-    def __construct_rmq_sparse_table(self) -> np.ndarray:
-        n = len(self.array)
-        m = n.bit_length() - 1
-        lookup_table = np.full((n, m + 1), np.iinfo(np.int64).max, dtype=np.int64)
-        lookup_table[:, 0] = np.arange(0, n)
+    def _construct(self) -> np.ndarray:
+        length = len(self.array)
+        log2_length = length.bit_length() - 1
+        lookup_table = np.full(
+            (length, log2_length + 1), np.iinfo(np.int64).max, dtype=np.int64
+        )
+        lookup_table[:, 0] = np.arange(0, length)
 
-        # break each index i into powers of 2
-        for j in range(1, m + 1):  # log(n)
-            if (1 << j) > n:  # 1 << j == 2^j
+        # break each index into powers of 2
+        for pow2 in range(1, log2_length + 1):  # log(length)
+            if (1 << pow2) > length:
                 break
-            for i in range(n):
-                if (i + (1 << j) - 1) >= n:
-                    break  # i + 2^j - 1
+            for index in range(length):
+                if (index + (1 << pow2) - 1) >= length:
+                    break  # index + 2^j - 1
                 else:
                     x, y = (
-                        lookup_table[i, j - 1],
-                        lookup_table[i + (1 << (j - 1)), j - 1],
+                        lookup_table[index, pow2 - 1],
+                        lookup_table[index + (1 << (pow2 - 1)), pow2 - 1],
                     )
                     if self.array[x] < self.array[y]:
-                        lookup_table[i, j] = x
+                        lookup_table[index, pow2] = x
                     else:
-                        lookup_table[i, j] = y
+                        lookup_table[index, pow2] = y
         return lookup_table
 
-    def query(self, start: int, stop: int) -> T:
+    def _query(self, start: int, stop: int) -> T:
         """In this operation we can query on an interval or segment and
         return the answer to the problem on that particular interval."""
 
         length = (stop - start) + 1
-        k = length.bit_length() - 1
+        log2_length = length.bit_length() - 1
         if (
-            self.array[self.lookup_table[start][k]]
-            <= self.array[self.lookup_table[start + length - (1 << k)][k]]
+            self.array[self.lookup_table[start][log2_length]]
+            <= self.array[
+                self.lookup_table[start + length - (1 << log2_length)][log2_length]
+            ]
         ):
-            return self.lookup_table[start][k]
+            return self.lookup_table[start][log2_length]
         else:
-            return self.lookup_table[stop - (1 << k) + 1][k]
+            return self.lookup_table[stop - (1 << log2_length) + 1][log2_length]
 
 
 class RMQPrecomputed(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
-        self.lookup_table = self.__construct_rmq_dynamic_programming()
+        self.lookup_table = self._construct()
 
-    def __construct_rmq_dynamic_programming(self) -> np.ndarray:
+    def _construct(self) -> np.ndarray:
         """Trivial algorithm for RMQ
         For every pair of indices (i, j) store the value of RMQ(i, j) in a table M[0, N-1][0, N-1].
         Using an easy dynamic programming approach we can reduce the complexity to <O(N^2), O(1)>
@@ -107,16 +112,16 @@ class RMQPrecomputed(RMQ):
                     lookup_table[i][j] = j
         return lookup_table
 
-    def query(self, start, stop):
+    def _query(self, start, stop):
         return self.lookup_table[start][stop]
 
 
 class RMQSegmentTree(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
-        self.lookup_table = self.__construct_rmq_segment_tree()
+        self.lookup_table = self._construct()
 
-    def __construct_rmq_segment_tree(self) -> np.ndarray:
+    def _construct(self) -> np.ndarray:
         """A segment tree or seg-tree is a basically a binary tree used for storing the intervals or segments.
         Each node in the segment tree represents an interval.
         Consider an array A of size N and a corresponding seg-tree T:
@@ -196,7 +201,7 @@ class RMQSegmentTree(RMQ):
         else:
             return p2
 
-    def query(self, start: int, stop: int) -> int:
+    def _query(self, start: int, stop: int) -> int:
         return self._query_impl(0, 0, len(self.array) - 1, start, stop)
 
 
@@ -204,9 +209,9 @@ class RMQSqrtDecomposition(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
         self.n_blocks = int(np.ceil(np.sqrt(len(self.array))))
-        self.extended_array, self.lookup = self.__construct_lookup_table()
+        self.extended_array, self.lookup = self._construct()
 
-    def __construct_lookup_table(self):
+    def _construct(self):
         extended_array = np.append(
             self.array, [0] * (self.n_blocks * self.n_blocks - len(self.array))
         )
@@ -218,7 +223,7 @@ class RMQSqrtDecomposition(RMQ):
             )
         return extended_array, lookup
 
-    def query(self, start: int, stop: int) -> int:
+    def _query(self, start: int, stop: int) -> int:
         start_block_index, start_block_offset = divmod(start, self.n_blocks)
         end_block_index, end_block_offset = divmod(stop, self.n_blocks)
 
@@ -255,7 +260,7 @@ class RMQFischerHeun(RMQ):
 
     def __init__(self, a):
         super().__init__(a)
-        self.block_type_2_rmq: dict[
+        self.block_type_2_lookup_table: dict[
             int, RMQPrecomputed
         ] = {}  # sqrt(n) * 2n/lg n  #  o(n)
         self.block_size = (len(self.array).bit_length() - 1) >> 1
@@ -265,7 +270,7 @@ class RMQFischerHeun(RMQ):
             self.summary_rmq,
             self.block_argmin,
             self.block_types,
-        ) = self._construct_fischer_heun_rmq()  # 2n/ lg n * log ( 2n/ lg n )
+        ) = self._construct()  # 2n/ lg n * log ( 2n/ lg n )
 
     @staticmethod
     def compute_block_type(block) -> int:
@@ -286,7 +291,7 @@ class RMQFischerHeun(RMQ):
         block_argmin = np.zeros(self.block_count, dtype=np.int32)
 
         for block_index in range(self.block_count):
-            in_block_rmq = self.block_type_2_rmq[block_types[block_index]]
+            in_block_rmq = self.block_type_2_lookup_table[block_types[block_index]]
             in_block_argmin = in_block_rmq[0 : self.block_size - 1]
             argmin_abs = block_index * self.block_size + in_block_argmin
 
@@ -295,7 +300,7 @@ class RMQFischerHeun(RMQ):
 
         return RMQSparseTable(block_min), block_argmin
 
-    def _construct_fischer_heun_rmq(
+    def _construct(
         self,
     ) -> tuple[RMQSparseTable, np.ndarray, np.ndarray]:
         block_types = np.zeros(self.block_count, dtype=np.int32)
@@ -311,14 +316,17 @@ class RMQFischerHeun(RMQ):
             block_type = self.compute_block_type(extended_array[block_start:block_end])
             block_types[block_index] = block_type
 
-            if block_type not in self.block_type_2_rmq:
-                self.block_type_2_rmq[block_type] = RMQPrecomputed(
+            if block_type not in self.block_type_2_lookup_table:
+                self.block_type_2_lookup_table[block_type] = RMQPrecomputed(
                     extended_array[block_start:block_end]
                 )
 
         return self._compute_summary_rmq(block_types) + (block_types,)
 
-    def _query_fischer_heun(self, start: int, stop: int) -> int:
+    def _get_lookup_table_for_block_at(self, block_index) -> RMQPrecomputed:
+        return self.block_type_2_lookup_table[self.block_types[block_index]]
+
+    def _query(self, start: int, stop: int) -> int:
         if start > stop:
             start, stop = stop, start
 
@@ -326,41 +334,48 @@ class RMQFischerHeun(RMQ):
         end_block_index, end_block_offset = divmod(stop, self.block_size)
 
         if start_block_index == end_block_index:
-            return (start_block_index * self.block_size) + self.block_type_2_rmq[
-                self.block_types[start_block_index]
-            ].query(start_block_offset, end_block_offset)
+            lookup_table = self._get_lookup_table_for_block_at(start_block_index)
+            return (start_block_index * self.block_size) + lookup_table[
+                start_block_offset:end_block_offset
+            ]
         else:
-            start_block_argmin = self.block_type_2_rmq[
-                self.block_types[start_block_index]
-            ].query(start_block_offset, self.block_size - 1)
-            start_block_argmin_abs = (
-                start_block_index * self.block_size + start_block_argmin
+            lookup_table = self._get_lookup_table_for_block_at(start_block_index)
+            start_block_argmin = (
+                start_block_index * self.block_size
+                + lookup_table[start_block_offset : self.block_size - 1]
             )
 
-            end_block_argmin = self.block_type_2_rmq[
-                self.block_types[end_block_index]
-            ].query(0, end_block_offset)
-            end_block_argmin_abs = end_block_index * self.block_size + end_block_argmin
+            lookup_table = self._get_lookup_table_for_block_at(end_block_index)
+            end_block_argmin = (
+                end_block_index * self.block_size + lookup_table[0:end_block_offset]
+            )
 
             if end_block_index - start_block_index > 1:
                 summary_argmin = self.block_argmin[
-                    self.summary_rmq.query(
-                        int(start_block_index + 1), int(end_block_index - 1)
-                    )
+                    self.summary_rmq[
+                        int(start_block_index + 1) : int(end_block_index - 1)
+                    ]
                 ]
-                argmin_abs = (
+                argmin = (
                     summary_argmin
-                    if self.array[summary_argmin] < self.array[start_block_argmin_abs]
-                    else start_block_argmin_abs
+                    if self.array[summary_argmin] < self.array[start_block_argmin]
+                    else start_block_argmin
                 )
             else:
-                argmin_abs = start_block_argmin_abs
+                argmin = start_block_argmin
 
             return (
-                end_block_argmin_abs
-                if self.array[end_block_argmin_abs] < self.array[argmin_abs]
-                else argmin_abs
+                end_block_argmin
+                if self.array[end_block_argmin] < self.array[argmin]
+                else argmin
             )
 
-    def query(self, start: int, stop: int) -> int:
-        return self._query_fischer_heun(start, stop)
+
+class RMQCartesianTreeLCA(RMQ):
+    def __init__(self, a: Iterable[T]):
+        super().__init__(a)
+        self.root = build_cartesian_tree(a)
+        # assert list(a) == [node.value for node in self.root.inorder()]
+
+    def _query(self, start: int, stop: int) -> T:
+        return get_lca(self.root, self.array[start], self.array[stop]).value_index

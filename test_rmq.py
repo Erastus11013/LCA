@@ -5,18 +5,13 @@ from sys import maxsize
 import numpy as np
 import pytest
 
-from rmq import (
-    RMQFischerHeun,
-    RMQPrecomputed,
-    RMQSegmentTree,
-    RMQSparseTable,
-    RMQSqrtDecomposition,
-)
+from rmq import (RMQCartesianTreeLCA, RMQFischerHeun, RMQPrecomputed,
+                 RMQSegmentTree, RMQSparseTable, RMQSqrtDecomposition)
 
 
 @pytest.fixture
 def param_from_fixture():
-    num_elems = 500
+    num_elems = 100
     low = -67890
     high = 300000
     num_iters = 100
@@ -31,6 +26,7 @@ def test_equality(param_from_fixture):
         RMQSparseTable,
         RMQSqrtDecomposition,
         RMQFischerHeun,
+        RMQCartesianTreeLCA,
     )
     # for num_elems in range(10, max_num_elems):
     num_elems = max_num_elems
