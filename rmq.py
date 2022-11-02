@@ -138,11 +138,9 @@ class RMQSegmentTree(RMQ):
         O(N) space: Array of size 2N."""
 
         n = len(self.array)
-        return self.__construct_segment_tree(
-            np.zeros(n << 1 + 1, dtype=np.int64), 0, 0, n - 1
-        )
+        return self._construct_impl(np.zeros(n << 1 + 1, dtype=np.int64), 0, 0, n - 1)
 
-    def __construct_segment_tree(
+    def _construct_impl(
         self, lookup_table: np.ndarray, current: int, start: int, stop: int
     ) -> np.ndarray:
         """Helper method to construct the segment tree"""
@@ -154,8 +152,8 @@ class RMQSegmentTree(RMQ):
 
             left = (current << 1) + 1
             right = left + 1
-            self.__construct_segment_tree(lookup_table, left, start, mid)
-            self.__construct_segment_tree(lookup_table, right, mid + 1, stop)
+            self._construct_impl(lookup_table, left, start, mid)
+            self._construct_impl(lookup_table, right, mid + 1, stop)
 
             if self.array[lookup_table[left]] <= self.array[lookup_table[right]]:
                 lookup_table[current] = lookup_table[left]
@@ -273,7 +271,7 @@ class RMQFischerHeun(RMQ):
         ) = self._construct()  # 2n/ lg n * log ( 2n/ lg n )
 
     @staticmethod
-    def compute_block_type(block) -> int:
+    def _compute_block_type(block) -> int:
         result = ""
         stack: list[int] = []
         for elem in block:
@@ -313,7 +311,7 @@ class RMQFischerHeun(RMQ):
             block_start = block_index * self.block_size
             block_end = block_start + self.block_size
 
-            block_type = self.compute_block_type(extended_array[block_start:block_end])
+            block_type = self._compute_block_type(extended_array[block_start:block_end])
             block_types[block_index] = block_type
 
             if block_type not in self.block_type_2_lookup_table:
