@@ -11,14 +11,37 @@ from treap import build_cartesian_tree, get_lca
 
 class RMQ(Generic[T], ABC):
     def __init__(self, a: Iterable[T]):
-        self.array = np.array(a)
+        self.elements = np.array(a)
 
     @abstractmethod
     def _query(self, start: int, stop: int) -> int:
+        """
+        Private method to find the range min query of a certain range of the underlying array
+
+        Parameters
+        ----------
+        start : int
+                The inclusive start of the range to be queried
+        stop  : int
+                The inclusive end of the range to be queried
+
+
+        Returns
+        -------
+        int
+            The RMQ_(`start`, `stop`)
+
+        Notes
+        _____
+        This method is only meant to be called by internal methods because it assumes neither
+        `start` nor `stop` go out of bounds
+        The user should find the RMQ using __getitem__
+
+        """
         pass
 
     def __getitem__(self, item: slice | tuple) -> T:
-        n = len(self.array)
+        n = len(self.elements)
         if isinstance(item, slice):
             stop = item.stop
             start = 0 if item.start is None else item.start
@@ -34,8 +57,29 @@ class RMQ(Generic[T], ABC):
             stop += n
         return self._query(start, stop)
 
-    def __repr__(self):
-        return f"RMQ{repr(self.array)}"
+    def _arg_min(self, index_a: int, index_b: int, elements=None) -> int:
+        """
+        Helper method to return the argmin of two indices to elements
+
+        Args:
+            index_a: int
+                    a within bounds index to `elements`
+            index_b: int
+                   a within bounds index to `elements`
+            elements:
+                    the elements to use to compute the argmin
+                    if elements is None, then we default `self.elements`
+
+        Returns:
+            int
+                The argmin of the two indices
+
+        """
+        if elements is None:
+            elements = self.elements
+        if elements[index_a] < elements[index_b]:
+            return index_a
+        return index_b
 
 
 class RMQSparseTable(RMQ):
@@ -44,7 +88,7 @@ class RMQSparseTable(RMQ):
         self.lookup_table = self._construct()
 
     def _construct(self) -> np.ndarray:
-        length = len(self.array)
+        length = len(self.elements)
         log2_length = length.bit_length() - 1
         lookup_table = np.full(
             (length, log2_length + 1), np.iinfo(np.int64).max, dtype=np.int64
@@ -59,25 +103,27 @@ class RMQSparseTable(RMQ):
                 if (index + (1 << pow2) - 1) >= length:
                     break  # index + 2^j - 1
                 else:
-                    x, y = (
+                    lookup_table[index, pow2] = self._arg_min(
                         lookup_table[index, pow2 - 1],
                         lookup_table[index + (1 << (pow2 - 1)), pow2 - 1],
                     )
-                    if self.array[x] < self.array[y]:
-                        lookup_table[index, pow2] = x
-                    else:
-                        lookup_table[index, pow2] = y
         return lookup_table
 
     def _query(self, start: int, stop: int) -> T:
-        """In this operation we can query on an interval or segment and
-        return the answer to the problem on that particular interval."""
+        """
+        Args:
+            start: Inclusive start of the query range
+            stop: Inclusive end of the query range
+
+        Returns:
+
+        """
 
         length = (stop - start) + 1
         log2_length = length.bit_length() - 1
         if (
-            self.array[self.lookup_table[start][log2_length]]
-            <= self.array[
+            self.elements[self.lookup_table[start][log2_length]]
+            <= self.elements[
                 self.lookup_table[start + length - (1 << log2_length)][log2_length]
             ]
         ):
@@ -92,12 +138,9 @@ class RMQPrecomputed(RMQ):
         self.lookup_table = self._construct()
 
     def _construct(self) -> np.ndarray:
-        """Trivial algorithm for RMQ
-        For every pair of indices (i, j) store the value of RMQ(i, j) in a table M[0, N-1][0, N-1].
-        Using an easy dynamic programming approach we can reduce the complexity to <O(N^2), O(1)>
-        Uses O(N^2) space"""
+        """Pre-computation of all the results of algorithm for RMQ"""
 
-        len_array = len(self.array)
+        len_array = len(self.elements)
         lookup_table = np.full(
             (len_array, len_array), np.iinfo(np.int64).max, dtype=np.int64
         )
@@ -106,10 +149,7 @@ class RMQPrecomputed(RMQ):
 
         for i in range(len_array):
             for j in range(i + 1, len_array):
-                if self.array[lookup_table[i][j - 1]] < self.array[j]:
-                    lookup_table[i][j] = lookup_table[i][j - 1]
-                else:
-                    lookup_table[i][j] = j
+                lookup_table[i][j] = self._arg_min(lookup_table[i][j - 1], j)
         return lookup_table
 
     def _query(self, start, stop):
@@ -119,151 +159,213 @@ class RMQPrecomputed(RMQ):
 class RMQSegmentTree(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
-        self.lookup_table = self._construct()
+        self.tree = self._construct()
 
     def _construct(self) -> np.ndarray:
-        """A segment tree or seg-tree is a basically a binary tree used for storing the intervals or segments.
-        Each node in the segment tree represents an interval.
-        Consider an array A of size N and a corresponding seg-tree T:
-        The root of T will represent the whole array A[0:N-1].
-        Each leaf in the seg-tree T will represent a single element A[i] such that 0 <= i < N.
-        The internal nodes in the seg-tree tree T represent union of elementary intervals A[i:j] where 0 <= i < j < N.
-        The root of the seg-tree will represent the whole array A[0:N-1].
-        Then we will break the interval or segment into half and the two children of the root will represent the
-        A[0:(N-1) / 2] and A[(N-1) / 2 + 1:(N-1)].
-        So in each step we will divide the interval into half and the two children will represent the two halves.
-        So the height of the segment tree will be log2N.
-        There are N leaves representing the N elements of the array.
-        The number of internal nodes is N-1. So total number of nodes are
-        O(N) space: Array of size 2N."""
+        """
+        Wrapper method which calls `self._construct_impl`
 
-        n = len(self.array)
-        return self._construct_impl(np.zeros(n << 1 + 1, dtype=np.int64), 0, 0, n - 1)
+        Returns: an array representation of the segment tree
+
+        """
+        n = len(self.elements)
+        tree = np.zeros(n << 1 + 1, dtype=np.int64)
+        self._construct_impl(tree=tree, i=0, start=0, stop=n - 1)
+        return tree
 
     def _construct_impl(
-        self, lookup_table: np.ndarray, current: int, start: int, stop: int
-    ) -> np.ndarray:
-        """Helper method to construct the segment tree"""
+        self, *, tree: np.ndarray, i: int, start: int, stop: int
+    ) -> None:
+        """
+        Recursively construct a segment tree for `self.elements`
 
-        if start == stop:  # we are at a leaf
-            lookup_table[current] = start
+        Parameters
+        ----------
+        tree        :np.ndarray
+                     A table mapping nodes to elements
+        i           :int
+                     The index of current node in `tree`
+        start       :int
+                     The start of the range of elements we are considering
+        stop        :int
+                     The end of the range of elements we are considering
+
+        Notes
+        -----
+            A segment tree is basically a binary tree used for storing the intervals or segments.
+            Each node in the segment tree represents an interval.
+
+            Consider an array A of size N and a corresponding segment tree T:
+            The root of T will represent the whole array A[0:N-1].
+
+            Each leaf in T will represent a single element A[i] such that 0 <= i < N.
+
+            The internal nodes in the segment tree T represent union of
+            elementary intervals A[i:j] where 0 <= i < j < N.
+
+            Then we will break the interval or segment into half and the two children of the root will represent the
+            A[0:(N-1) / 2] and A[(N-1) / 2 + 1:(N-1)].
+
+            So in each step we will divide the interval into half and the two children will represent the two halves.
+            So the height of the segment tree will be log_2(N).
+
+            There are N leaves representing the N elements of the array.
+
+            The number of internal nodes is N-1. So total number of nodes are O(N) space: Array of size 2N.
+
+            If the current node is at index i, the left child of i will be at (2*i) + 1
+                                               the right child of i will be at (2*i) + 2
+
+        """
+
+        if start == stop:  # we are at a leaf node
+            tree[i] = start
         else:
             mid = (start + stop) >> 1
-
-            left = (current << 1) + 1
-            right = left + 1
-            self._construct_impl(lookup_table, left, start, mid)
-            self._construct_impl(lookup_table, right, mid + 1, stop)
-
-            if self.array[lookup_table[left]] <= self.array[lookup_table[right]]:
-                lookup_table[current] = lookup_table[left]
-            else:
-                lookup_table[current] = lookup_table[right]
-        return lookup_table
+            self._construct_impl(tree=tree, i=2 * i + 1, start=start, stop=mid)
+            self._construct_impl(tree=tree, i=2 * i + 2, start=mid + 1, stop=stop)
+            tree[i] = self._arg_min(tree[2 * i + 1], tree[2 * i + 2])
 
     def _query_impl(
         self,
-        curr: int,
-        left_bound: int,
-        right_bound: int,
+        i: int,
+        bound_start: int,
+        bound_stop: int,
         query_start: int,
         query_stop: int,
-    ) -> Optional[T]:
-        """To query on a given range, we need to check 3 conditions:
-        range represented by a node is completely  inside  the given query
-        range represented by a node is completely  outside the given query
-        range represented by a node is partially   inside and partially outside the given query"""
+    ) -> Optional[int]:
+        """
+        Implementation of a query on a segment tree
 
-        # range represented by a node is completely outside the given range
-        if query_start > right_bound or query_stop < left_bound:
+        Parameters
+        ---------
+        i: int
+            The index of the current node we are look at in ``self.tree``, i.e ``self.tree[i]``
+        bound_start:
+            Inclusive index of the start of the range represented by ``self.tree[i]``
+        bound_stop:
+            Inclusive index of the end of the range represented by ``self.tree[i]``
+        query_start:
+            Inclusive index of the start of the range we are querying
+        query_stop:
+            Inclusive index of the end of the range we are querying
+
+        Returns
+        -------
+        None
+            range represented by node `self.tree[i]` is completely outside the given query range
+        int
+            the argmin in the range [query_start: query_end]
+
+        Notes
+        -----
+        To query on a given range, we need to check 3 conditions:
+            1) range represented by node `self.tree[i]` is completely inside the given query
+            2) range represented by node `self.tree[i]` is completely outside the given query
+            3) range represented by node `self.tree[i]` is partially inside and partially outside the given query
+        """
+
+        # range represented by node `self.tree[i]` is completely outside the given query
+        if query_start > bound_stop or query_stop < bound_start:
             return None
 
-        # if the current interval is included in the query interval return M[curr]
-        if query_start <= left_bound and right_bound <= query_stop:
-            return self.lookup_table[curr]
+        # range represented by node `self.tree[i]` is completely outside the given query
+        if query_start <= bound_start and bound_stop <= query_stop:
+            return self.tree[i]
 
-        #  compute arg_min in the left and right interval
-        mid = (left_bound + right_bound) >> 1
-        p1 = self._query_impl(2 * curr + 1, left_bound, mid, query_start, query_stop)
-        p2 = self._query_impl(
-            2 * curr + 2, mid + 1, right_bound, query_start, query_stop
+        # range represented by node `self.tree[i]` is partially inside and partially outside the given query
+        mid = (bound_start + bound_stop) >> 1
+        argmin_left = self._query_impl(
+            2 * i + 1, bound_start, mid, query_start, query_stop
+        )
+        argmin_right = self._query_impl(
+            2 * i + 2, mid + 1, bound_stop, query_start, query_stop
         )
 
-        # find and return arg_min(self.A[i: j])// return the
-        if p2 is None:
-            return p1
-        if p1 is None:
-            return p2
-        if self.array[p1] <= self.array[p2]:
-            return p1
-        else:
-            return p2
+        if argmin_right is None:
+            return argmin_left
+        if argmin_left is None:
+            return argmin_right
+        return self._arg_min(argmin_left, argmin_right)
 
     def _query(self, start: int, stop: int) -> int:
-        return self._query_impl(0, 0, len(self.array) - 1, start, stop)
+        return self._query_impl(0, 0, len(self.elements) - 1, start, stop)
 
 
 class RMQSqrtDecomposition(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
-        self.n_blocks = int(np.ceil(np.sqrt(len(self.array))))
+        self.sqrt = int(np.ceil(np.sqrt(len(self.elements))))
         self.extended_array, self.lookup = self._construct()
 
     def _construct(self):
         extended_array = np.append(
-            self.array, [0] * (self.n_blocks * self.n_blocks - len(self.array))
+            self.elements, [0] * (self.sqrt * self.sqrt - len(self.elements))
         )
-        lookup = np.empty(self.n_blocks, dtype=np.int64)
-        for block_index in range(0, self.n_blocks):
-            offset = block_index * self.n_blocks
+        lookup = np.empty(self.sqrt, dtype=np.int64)
+        for block_index in range(0, self.sqrt):
+            offset = block_index * self.sqrt
             lookup[block_index] = offset + np.argmin(
-                extended_array[offset : (offset + self.n_blocks)]
+                extended_array[offset : (offset + self.sqrt)]
             )
         return extended_array, lookup
 
     def _query(self, start: int, stop: int) -> int:
-        start_block_index, start_block_offset = divmod(start, self.n_blocks)
-        end_block_index, end_block_offset = divmod(stop, self.n_blocks)
+        start_block_index, start_block_offset = divmod(start, self.sqrt)
+        end_block_index, end_block_offset = divmod(stop, self.sqrt)
 
         arg_min = start
         if start_block_index == end_block_index:
             for index in range(start, stop + 1):
-                if self.array[index] < self.array[arg_min]:
+                if self.elements[index] < self.elements[arg_min]:
                     arg_min = index
         else:
             for index in self.lookup[start_block_index + 1 : end_block_index]:
                 if self.extended_array[index] < self.extended_array[arg_min]:
                     arg_min = index
-            for block_offset in range(start_block_offset, self.n_blocks):
+            for block_offset in range(start_block_offset, self.sqrt):
                 if (
-                    self.extended_array[
-                        start_block_index * self.n_blocks + block_offset
-                    ]
+                    self.extended_array[start_block_index * self.sqrt + block_offset]
                     < self.extended_array[arg_min]
                 ):
-                    arg_min = start_block_index * self.n_blocks + block_offset
+                    arg_min = start_block_index * self.sqrt + block_offset
             for block_offset in range(end_block_offset + 1):
                 if (
-                    self.extended_array[end_block_index * self.n_blocks + block_offset]
+                    self.extended_array[end_block_index * self.sqrt + block_offset]
                     < self.extended_array[arg_min]
                 ):
-                    arg_min = end_block_index * self.n_blocks + block_offset
+                    arg_min = end_block_index * self.sqrt + block_offset
         return arg_min
 
 
 class RMQFischerHeun(RMQ):
     """
-    https://link.springer.com/content/pdf/10.1007%2F11780441_5.pdf
+
+    Notes
+    -----
+        ``block_type_2_lookup_table`` maps each block type to a lookup table.
+
+        We have 4^(b) block-level RMQ structures, where the space and time complexity of ach
+        is O(b^2)
+
+        We set b = (1/4) log_2 n
+
+        Time complexity for building ``block_type_2_lookup_table`` is the sum of:
+            * O(n), for computing block types
+            * O(4^((1/4) log_2 n) * ((1/4) log_2 n)) * ((1/4) log_2 n)) = O(sqrt(n) * log_2(n)^2) = O(n)
+            = O(n)
+
+        Time complexity for building ``summary_rmq``
+            * O(n/b log (n/b)) = O((n/log_2(n)) * log_2((n/log_2(n))) = O(n)
+        https://link.springer.com/content/pdf/10.1007%2F11780441_5.pdf
     """
 
     def __init__(self, a):
         super().__init__(a)
-        self.block_type_2_lookup_table: dict[
-            int, RMQPrecomputed
-        ] = {}  # sqrt(n) * 2n/lg n  #  o(n)
-        self.block_size = (len(self.array).bit_length() - 1) >> 1
-        self.block_count = ceil(len(self.array) / self.block_size)
-        assert self.block_size * self.block_count >= len(self.array)
+        self.block_type_2_lookup_table: dict[int, RMQPrecomputed] = {}
+        self.block_size = (len(self.elements).bit_length()) >> 2
+        self.block_count = ceil(len(self.elements) / self.block_size)
+        assert self.block_size * self.block_count >= len(self.elements)
         (
             self.summary_rmq,
             self.block_argmin,
@@ -291,10 +393,10 @@ class RMQFischerHeun(RMQ):
         for block_index in range(self.block_count):
             in_block_rmq = self.block_type_2_lookup_table[block_types[block_index]]
             in_block_argmin = in_block_rmq[0 : self.block_size - 1]
-            argmin_abs = block_index * self.block_size + in_block_argmin
+            argmin = block_index * self.block_size + in_block_argmin
 
-            block_min[block_index] = self.array[argmin_abs]
-            block_argmin[block_index] = argmin_abs
+            block_min[block_index] = self.elements[argmin]
+            block_argmin[block_index] = argmin
 
         return RMQSparseTable(block_min), block_argmin
 
@@ -304,8 +406,8 @@ class RMQFischerHeun(RMQ):
         block_types = np.zeros(self.block_count, dtype=np.int32)
 
         extended_array = np.append(
-            self.array,
-            [maxsize] * (self.block_count * self.block_size - len(self.array)),
+            self.elements,
+            [maxsize] * (self.block_count * self.block_size - len(self.elements)),
         )
         for block_index in range(self.block_count):
             block_start = block_index * self.block_size
@@ -356,7 +458,7 @@ class RMQFischerHeun(RMQ):
                 ]
                 argmin = (
                     summary_argmin
-                    if self.array[summary_argmin] < self.array[start_block_argmin]
+                    if self.elements[summary_argmin] < self.elements[start_block_argmin]
                     else start_block_argmin
                 )
             else:
@@ -364,7 +466,7 @@ class RMQFischerHeun(RMQ):
 
             return (
                 end_block_argmin
-                if self.array[end_block_argmin] < self.array[argmin]
+                if self.elements[end_block_argmin] < self.elements[argmin]
                 else argmin
             )
 
@@ -376,4 +478,4 @@ class RMQCartesianTreeLCA(RMQ):
         # assert list(a) == [node.value for node in self.root.inorder()]
 
     def _query(self, start: int, stop: int) -> T:
-        return get_lca(self.root, self.array[start], self.array[stop]).value_index
+        return get_lca(self.root, self.elements[start], self.elements[stop]).value_index
