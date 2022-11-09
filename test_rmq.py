@@ -5,13 +5,19 @@ from sys import maxsize
 import numpy as np
 import pytest
 
-from rmq import (RMQCartesianTreeLCA, RMQFischerHeun, RMQPrecomputed,
-                 RMQSegmentTree, RMQSparseTable, RMQSqrtDecomposition)
+from rmq import (
+    RMQCartesianTreeLCA,
+    RMQFischerHeun,
+    RMQPrecomputed,
+    RMQSegmentTree,
+    RMQSparseTable,
+    RMQSqrtDecomposition,
+)
 
 
 @pytest.fixture
 def param_from_fixture():
-    num_elems = 100
+    num_elems = 1000
     low = -67890
     high = 300000
     num_iters = 100

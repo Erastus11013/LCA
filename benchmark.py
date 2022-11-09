@@ -7,8 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
 
-from rmq import (RMQCartesianTreeLCA, RMQFischerHeun, RMQPrecomputed,
-                 RMQSegmentTree, RMQSparseTable, RMQSqrtDecomposition)
+from rmq import (
+    RMQCartesianTreeLCA,
+    RMQFischerHeun,
+    RMQPrecomputed,
+    RMQSegmentTree,
+    RMQSparseTable,
+    RMQSqrtDecomposition,
+)
 
 rmq_constructors = (
     RMQPrecomputed,

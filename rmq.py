@@ -374,15 +374,18 @@ class RMQFischerHeun(RMQ):
 
     @staticmethod
     def _compute_block_type(block) -> int:
-        result = ""
+        result = 0
         stack: list[int] = []
         for elem in block:
             while stack and stack[-1] > elem:
                 stack.pop()
-                result += "0"
+                result = result << 1
             stack.append(elem)
-            result += "1"
-        return int(result[::-1], 2)
+            result = (result << 1) | 1
+        while stack:
+            stack.pop()
+            result = result << 1
+        return result
 
     def _compute_summary_rmq(
         self, block_types: np.ndarray
