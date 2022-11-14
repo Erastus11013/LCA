@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from math import ceil
 from sys import maxsize
-from typing import Generic, Iterable, Optional
+from typing import Generic, Iterable, Optional, Any
 
 import numpy as np
 
@@ -12,6 +12,10 @@ from treap import build_cartesian_tree, get_lca
 class RMQ(Generic[T], ABC):
     def __init__(self, a: Iterable[T]):
         self.elements = np.array(a)
+
+    @abstractmethod
+    def _construct(self) -> Any:
+        pass
 
     @abstractmethod
     def _query(self, start: int, stop: int) -> int:
@@ -477,8 +481,11 @@ class RMQFischerHeun(RMQ):
 class RMQCartesianTreeLCA(RMQ):
     def __init__(self, a: Iterable[T]):
         super().__init__(a)
-        self.root = build_cartesian_tree(a)
+        self.root = self._construct()
         # assert list(a) == [node.value for node in self.root.inorder()]
+
+    def _construct(self) -> Any:
+        return build_cartesian_tree(self.elements)
 
     def _query(self, start: int, stop: int) -> T:
         return get_lca(self.root, self.elements[start], self.elements[stop]).value_index
