@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from math import ceil
 from sys import maxsize
-from typing import Generic, Iterable, Optional, Any
+from typing import Any, Generic, Iterable, Optional
 
 import numpy as np
 
-from common import T
+from shared import T
 from treap import build_cartesian_tree, get_lca
 
 

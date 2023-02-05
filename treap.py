@@ -2,12 +2,11 @@ import random
 from collections import deque
 from dataclasses import dataclass
 from math import inf
-from pprint import pprint
 from typing import Generic, Iterable, Optional
 
 import numpy as np
 
-from common import T
+from shared import T
 
 
 @dataclass(slots=True, order=True)
