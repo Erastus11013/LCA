@@ -1,4 +1,5 @@
 A comparison of algorithms to answer the RMQ problem. 
+![Tests](https://github.com/erastus-murungi/rmq-lca/actions/workflows/python-app.yml/badge.svg)
 
 Sources:
 1. [Theoretical and Practical Improvements on the
